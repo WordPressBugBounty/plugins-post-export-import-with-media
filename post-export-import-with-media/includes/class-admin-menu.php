@@ -990,6 +990,107 @@ class PEIWM_Admin_Menu {
 								</span>
 							</label>
 						</div>
+
+						<?php
+						$main_instance_media = PEIWM_Main::get_instance();
+						$is_pro_media        = $main_instance_media->is_pro_active();
+						?>
+
+						<!-- Advanced Options Toggle for Media -->
+						<button type="button" class="peiwm-advanced-toggle" aria-expanded="false" aria-controls="peiwm-advanced-export-media">
+							<svg class="peiwm-advanced-toggle__gear" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+								<path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
+								<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+							</svg>
+							<span><?php echo esc_html__( 'Advanced options', 'post-export-import-with-media' ); ?></span>
+							<svg class="peiwm-advanced-toggle__chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+								<polyline points="6 9 12 15 18 9"/>
+							</svg>
+						</button>
+
+						<!-- Advanced Panel for Media Export -->
+						<div class="peiwm-advanced-panel" id="peiwm-advanced-export-media" aria-hidden="true">
+
+							<!-- PRO: Export by date range -->
+							<div class="peiwm-inline-row <?php echo ! $is_pro_media ? 'peiwm-pro-inline-row is-locked peiwm-locked-section peiwm-open-premium-modal' : ''; ?>">
+								<label class="peiwm-checkbox-label">
+									<input type="checkbox" id="peiwm-media-export-daterange" <?php echo ! $is_pro_media ? 'disabled' : ''; ?>>
+									<span class="peiwm-checkbox-text">
+										<strong>
+											<?php echo esc_html__( 'Export by date range', 'post-export-import-with-media' ); ?>
+											<?php if ( ! $is_pro_media ) : ?>
+												<span class="peiwm-pro-inline-badge">🔒 <?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span>
+											<?php endif; ?>
+										</strong>
+										<span class="peiwm-checkbox-description">
+											<?php echo esc_html__( 'Filter media by upload date range before exporting.', 'post-export-import-with-media' ); ?>
+										</span>
+									</span>
+								</label>
+								<?php if ( ! $is_pro_media ) : ?>
+									<a class="peiwm-pro-upgrade-link peiwm-open-premium-modal" href="https://wpazleen.com/post-export-import-with-media-pricing/" target="_blank"><?php echo esc_html__( 'Upgrade', 'post-export-import-with-media' ); ?> ↗</a>
+								<?php endif; ?>
+							</div>
+
+							<!-- Date range UI for media (hidden until checkbox checked) -->
+							<div id="peiwm-media-daterange-filter-ui" style="display:none; margin: 0.5rem 0 0.25rem 1.75rem;">
+								<div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+									<label style="font-size:0.875rem; font-weight:500; white-space:nowrap;">
+										<?php echo esc_html__( 'From', 'post-export-import-with-media' ); ?>
+										<input type="date" id="peiwm-media-export-date-from"
+										       max="<?php echo esc_attr( gmdate( 'Y-m-d' ) ); ?>"
+										       style="margin-left:0.4rem; padding:4px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:0.875rem;">
+									</label>
+									<label style="font-size:0.875rem; font-weight:500; white-space:nowrap;">
+										<?php echo esc_html__( 'To', 'post-export-import-with-media' ); ?>
+										<input type="date" id="peiwm-media-export-date-to"
+										       max="<?php echo esc_attr( gmdate( 'Y-m-d' ) ); ?>"
+										       style="margin-left:0.4rem; padding:4px 8px; border:1px solid #d1d5db; border-radius:4px; font-size:0.875rem;">
+									</label>
+								</div>
+								<p id="peiwm-media-daterange-error" style="display:none; color:#dc2626; font-size:0.8rem; margin:0.35rem 0 0;"></p>
+								<p id="peiwm-media-daterange-summary" style="display:none; color:#6b7280; font-size:0.8rem; margin:0.35rem 0 0;"></p>
+							</div>
+
+							<!-- PRO: Export media by post -->
+							<div class="peiwm-inline-row <?php echo ! $is_pro_media ? 'peiwm-pro-inline-row is-locked peiwm-locked-section peiwm-open-premium-modal' : ''; ?>">
+								<label class="peiwm-checkbox-label">
+									<input type="checkbox" id="peiwm-media-export-by-post" <?php echo ! $is_pro_media ? 'disabled' : ''; ?>>
+									<span class="peiwm-checkbox-text">
+										<strong>
+											<?php echo esc_html__( 'Export media by post', 'post-export-import-with-media' ); ?>
+											<?php if ( ! $is_pro_media ) : ?>
+												<span class="peiwm-pro-inline-badge">🔒 <?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span>
+											<?php endif; ?>
+										</strong>
+										<span class="peiwm-checkbox-description">
+											<?php echo esc_html__( 'Choose specific posts and export only the media attached to them.', 'post-export-import-with-media' ); ?>
+										</span>
+									</span>
+								</label>
+								<?php if ( ! $is_pro_media ) : ?>
+									<a class="peiwm-pro-upgrade-link peiwm-open-premium-modal" href="https://wpazleen.com/post-export-import-with-media-pricing/" target="_blank"><?php echo esc_html__( 'Upgrade', 'post-export-import-with-media' ); ?> ↗</a>
+								<?php endif; ?>
+							</div>
+
+							<!-- Post selector panel for media (reuses posts-list style) -->
+							<div id="peiwm-media-by-post-panel" style="display:none; margin: 0.5rem 0 0.5rem 1.75rem;">
+								<div style="margin-bottom:0.5rem; display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+									<input type="text" id="peiwm-media-post-search" placeholder="<?php echo esc_attr__( 'Search posts…', 'post-export-import-with-media' ); ?>" style="flex:1; min-width:160px; padding:5px 10px; border:1px solid #d1d5db; border-radius:4px; font-size:0.875rem;">
+									<button type="button" id="peiwm-media-post-select-all" class="button button-secondary" style="font-size:0.8rem; padding:3px 10px;"><?php echo esc_html__( 'Select all', 'post-export-import-with-media' ); ?></button>
+									<button type="button" id="peiwm-media-post-deselect-all" class="button button-secondary" style="font-size:0.8rem; padding:3px 10px;"><?php echo esc_html__( 'Deselect all', 'post-export-import-with-media' ); ?></button>
+								</div>
+								<div id="peiwm-media-post-list" style="max-height:240px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:4px; padding:0.4rem; background:#fff;">
+									<p style="color:#9ca3af; font-size:0.85rem; margin:0.5rem;"><?php echo esc_html__( 'Loading posts…', 'post-export-import-with-media' ); ?></p>
+								</div>
+								<div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.35rem;">
+									<span id="peiwm-media-post-selected-count" style="font-size:0.8rem; color:#6b7280;"></span>
+									<span id="peiwm-media-post-load-more-wrap"></span>
+								</div>
+							</div>
+
+						</div>
+						<!-- /Advanced Panel for Media Export -->
 						
 						<button type="button" id="peiwm-export-media" class="button button-primary">
 							<?php echo esc_html__( 'Export Media', 'post-export-import-with-media' ); ?>

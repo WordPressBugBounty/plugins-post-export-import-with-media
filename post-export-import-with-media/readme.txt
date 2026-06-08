@@ -4,7 +4,7 @@ Tags: export-media, import, post-export, page-export, migration
 Requires at least: 6.7
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable Tag: 1.11.0
+Stable Tag: 1.12.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -187,7 +187,12 @@ A: Not at all! The plugin is designed to be beginner-friendly with a simple inte
 
 == Changelog ==
 
-= 1.11.0 – 05 June 2026 =
+= 1.12.0 – 08 June 2026 =
+* **New:** Added media export by upload date range.
+* **New:** Added media export by post selection, allowing export of only the media attached to specific posts.
+* **Fix:** Resolved an issue where localhost media URLs were not always replaced with live site URLs for certain images during import.
+
+= 1.11.0 – 04 June 2026 =
 * **New:** Added a comprehensive FAQ guide to help users get started and troubleshoot common issues.
 * **Fix:** Resolved an issue where image batch paths were not updating correctly for certain posts
 * **Fix:** Fixed various Custom Post Type (CPT) export and import issues to improve data migration reliability

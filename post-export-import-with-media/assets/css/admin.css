@@ -31,7 +31,7 @@
 
     --gradient-primary: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
     --gradient-secondary: linear-gradient(135deg, #06b6d4 0%, #0ea5e9 100%);
-    --gradient-success: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+    --gradient-success: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
     --gradient-danger: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
     --gradient-warning: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
     --gradient-warm: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
@@ -86,6 +86,19 @@ span#footer-thankyou,
     border-radius: 2px;
 }
 
+h1.heading-admin {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-align: center;
+    align-items: center;
+}
+
+span.dashicons.dashicons-video-alt3 {
+    margin-top: 10px;
+}
+
 .peiwm-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
@@ -136,6 +149,11 @@ button#peiwm-refresh-stats {
     margin-top: 16px;
 }
 
+button#peiwm-export-posts,
+button#peiwm-export-pages {
+    margin-top: 10px;
+}
+
 .peiwm-section h2::before {
     content: '\1F3AF';
     font-size: 1.5rem;
@@ -150,6 +168,234 @@ button#peiwm-refresh-stats {
     align-items: center;
     gap: 0.5rem;
 }
+
+
+/* FAQ Section Start */
+/* ── Search bar ── */
+.peiwm-faq-search{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:#f8fafc;
+  border:1px solid #e5e7eb;
+  border-radius:6px;
+  padding:8px 12px;
+  margin-bottom:1.25rem;
+  transition:border-color .2s;
+}
+.peiwm-faq-search:focus-within{
+  border-color:#e67428;
+  box-shadow:0 0 0 3px rgba(230,116,40,.1);
+}
+.peiwm-faq-search svg{
+  color:#94a3b8;
+  flex-shrink:0;
+  width:16px;height:16px;
+}
+.peiwm-faq-search input{
+  border:none;
+  background:transparent;
+  outline:none;
+  font-size:13.5px;
+  color:#1e293b;
+  flex:1;
+  font-family:inherit;
+}
+
+.peiwm-faq-search input:focus{
+    border-color: unset;
+    box-shadow: unset;
+}
+.peiwm-faq-search input::placeholder{color:#94a3b8}
+ 
+/* ── Filter tabs ── */
+.peiwm-faq-tabs{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  margin-bottom:1rem;
+}
+.peiwm-faq-tab{
+  font-size:12px;
+  font-family:inherit;
+  padding:4px 12px;
+  border:1px solid #e5e7eb;
+  border-radius:20px;
+  background:#fff;
+  color:#64748b;
+  cursor:pointer;
+  transition:all .15s ease;
+  line-height:1.6;
+}
+.peiwm-faq-tab:hover,
+.peiwm-faq-tab.active{
+  background:#e67428;
+  color:#fff;
+  border-color:#e67428;
+}
+.peiwm-faq-tab:focus-visible{
+  outline:2px solid #e67428;
+  outline-offset:2px;
+}
+ 
+/* ── Count label ── */
+.peiwm-faq-count{
+  font-size:12px;
+  color:#94a3b8;
+  margin-bottom:.75rem;
+}
+ 
+/* ── FAQ list ── */
+.peiwm-faq-list{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+ 
+/* ── Individual item ── */
+.peiwm-faq-item{
+  border:1px solid #e5e7eb;
+  border-radius:7px;
+  overflow:hidden;
+  transition:border-color .2s, box-shadow .2s;
+}
+.peiwm-faq-item:hover{
+  border-color:#e67428;
+}
+.peiwm-faq-item.is-open{
+  border-color:#e67428;
+  box-shadow:0 0 0 3px rgba(230,116,40,.08);
+}
+ 
+/* ── Question row ── */
+.peiwm-faq-question{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:12px 14px;
+  cursor:pointer;
+  background:#fff;
+  user-select:none;
+  border:none;
+  width:100%;
+  text-align:left;
+  font-family:inherit;
+  transition:background .15s;
+}
+.peiwm-faq-question:hover{
+  background:#fffaf6;
+}
+ 
+/* Icon bubble */
+.peiwm-faq-icon{
+  width:28px;
+  height:28px;
+  border-radius:6px;
+  background:#fff4eb;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+  color:#e67428;
+}
+.peiwm-faq-icon svg{width:14px;height:14px}
+ 
+/* Question text */
+.peiwm-faq-question-text{
+  flex:1;
+  font-size:13.5px;
+  font-weight:500;
+  color:#1e293b;
+  line-height:1.4;
+}
+ 
+/* PRO badge */
+.peiwm-faq-badge{
+  font-size:10px;
+  padding:2px 8px;
+  border-radius:10px;
+  background:#f1f5f9;
+  color:#64748b;
+  white-space:nowrap;
+  font-weight:500;
+}
+.peiwm-faq-badge--pro{
+  background:#fff4eb;
+  color:#c05a14;
+}
+ 
+/* Chevron */
+.peiwm-faq-chevron{
+  color:#94a3b8;
+  flex-shrink:0;
+  transition:transform .25s ease, color .2s;
+  width:16px;height:16px;
+}
+.peiwm-faq-item.is-open .peiwm-faq-chevron{
+  transform:rotate(180deg);
+  color:#e67428;
+}
+ 
+/* ── Answer panel ── */
+.peiwm-faq-answer{
+  max-height:0;
+  overflow:hidden;
+  transition:max-height .3s ease, opacity .25s;
+  opacity:0;
+}
+.peiwm-faq-item.is-open .peiwm-faq-answer{
+  max-height:600px;
+  opacity:1;
+}
+.peiwm-faq-answer-inner{
+  padding:0 14px 14px 52px;
+  font-size:13px;
+  line-height:1.75;
+  color:#475569;
+  border-top:1px solid #f1f5f9;
+}
+.peiwm-faq-answer-inner p{margin-top:.65rem}
+.peiwm-faq-answer-inner p:first-child{margin-top:.65rem}
+.peiwm-faq-answer-inner ul,
+.peiwm-faq-answer-inner ol{
+  margin-top:.5rem;
+  padding-left:1.25rem;
+}
+.peiwm-faq-answer-inner li{margin-bottom:.3rem}
+.peiwm-faq-answer-inner strong{color:#1e293b;font-weight:600}
+.peiwm-faq-answer-inner a{color:#e67428;text-decoration:none}
+.peiwm-faq-answer-inner a:hover{text-decoration:underline}
+.peiwm-faq-answer-inner code{
+  background:#f1f5f9;
+  padding:1px 5px;
+  border-radius:4px;
+  font-family:monospace;
+  font-size:12px;
+  color:#c05a14;
+}
+ 
+/* ── Empty state ── */
+.peiwm-faq-empty{
+  text-align:center;
+  padding:2rem;
+  color:#94a3b8;
+  font-size:13px;
+}
+.peiwm-faq-empty svg{
+  width:32px;height:32px;
+  display:block;
+  margin:0 auto .5rem;
+  opacity:.4;
+}
+ 
+/* Reduced motion */
+@media(prefers-reduced-motion:reduce){
+  .peiwm-faq-answer,
+  .peiwm-faq-chevron,
+  .peiwm-faq-item,
+  .peiwm-faq-question{transition:none}
+}
+/* FAQ Section END */
 
 /* Export Section */
 .peiwm-export-section {
@@ -432,12 +678,6 @@ button#peiwm-refresh-stats {
 }
 
 /* Import Options */
-.peiwm-import-options {
-    background: rgba(59, 130, 246, 0.1);
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    border-radius: 8px;
-    padding: 1rem;
-}
 
 .peiwm-checkbox-label {
     display: flex;
@@ -729,6 +969,7 @@ button#peiwm-refresh-stats {
     gap: 0.75rem;
     box-shadow: var(--shadow-sm);
     transition: all 0.3s ease;
+    height: max-content;
 }
 
 .peiwm-file-type-item:hover {
@@ -740,6 +981,9 @@ button#peiwm-refresh-stats {
 .peiwm-file-type-name {
     color: var(--text-primary);
     font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .peiwm-file-type-count {
@@ -751,6 +995,47 @@ button#peiwm-refresh-stats {
     font-weight: 800;
     min-width: 25px;
     text-align: center;
+    flex-shrink: 0;
+}
+
+.peiwm-file-type-item.peiwm-more-toggle {
+    background: #667eea;
+    border-color: #667eea;
+    cursor: pointer;
+    justify-content: center;
+    height: max-content;
+}
+
+.peiwm-file-type-item.peiwm-more-toggle:hover {
+    background: #5871e3;
+    transform: translateY(-2px) scale(1.02);
+}
+
+.peiwm-file-type-item.peiwm-more-toggle .peiwm-more-text {
+    color: white;
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.peiwm-file-types-hidden {
+    display: none;
+    width: 100%;
+}
+
+.peiwm-file-types-hidden .peiwm-file-type-item {
+    margin-top: 0.5rem;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 
@@ -789,6 +1074,67 @@ button#peiwm-refresh-stats {
     transform: scale(0.8);
     transition: transform 0.3s ease;
 }
+
+/* Missing modal main scrollbar  */
+
+.peiwm-modal.peiwm-media-missing-modal {
+    max-width: 900px;
+    max-height: 85vh;
+    overflow-y: auto;
+    background: #fff;
+    scrollbar-width: thin;
+    scrollbar-color: #c1c1c1 #fff;
+}
+
+/* Chrome, Edge, Safari */
+.peiwm-modal.peiwm-media-missing-modal::-webkit-scrollbar {
+    width: 10px;
+}
+
+.peiwm-modal.peiwm-media-missing-modal::-webkit-scrollbar-track {
+    background: #fff;
+}
+
+.peiwm-modal.peiwm-media-missing-modal::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 10px;
+    border: 2px solid #fff;
+}
+
+.peiwm-modal.peiwm-media-missing-modal::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+/* END  */
+
+
+.peiwm-table-scroll-wrapper {
+    overflow-y: auto;
+    /* Firefox */
+    scrollbar-width: thin;
+    scrollbar-color: #c1c1c1 #fff;
+}
+
+/* Chrome, Edge, Safari */
+.peiwm-table-scroll-wrapper::-webkit-scrollbar {
+    width: 8px;
+}
+
+.peiwm-table-scroll-wrapper::-webkit-scrollbar-track {
+    background: #fff;
+}
+
+.peiwm-table-scroll-wrapper::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 10px;
+    border: 2px solid #fff;
+}
+
+.peiwm-table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+/* END  */
 
 .peiwm-modal-overlay.peiwm-show .peiwm-modal {
     transform: scale(1);
@@ -1299,13 +1645,6 @@ input:focus {
     background: #f9f9f9;
 }
 
-.peiwm-import-options {
-    margin: 15px 0;
-    padding: 15px;
-    background: #f0f8ff;
-    border: 1px solid #b3d9ff;
-    border-radius: 4px;
-}
 
 .peiwm-active-label {
     color: #00a32a;
@@ -2276,6 +2615,7 @@ input:checked+.peiwm-toggle-slider:before {
     border-radius: 3px;
 }
 
+
 .peiwm-selective-item {
     display: flex;
     align-items: center;
@@ -2865,5 +3205,308 @@ p.description-hint {
 
     100% {
         transform: translateX(0);
+    }
+}
+
+
+/* ============================================================
+   Advanced Options Toggle
+   Matches existing plugin color tokens (--primary: #f97316)
+   ============================================================ */
+
+.peiwm-advanced-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    margin: 10px 0 10px;
+    background: #f9f5f0;
+    border: 1.5px dashed #d1d5db;
+    border-radius: 10px;
+    color: #6b7280;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.peiwm-advanced-toggle:hover {
+    color: #1a1a1a;
+    border-color: #9ca3af;
+    background: #f3f4f6;
+}
+
+.peiwm-advanced-toggle:focus-visible {
+    outline: 2px solid rgba(249, 115, 22, 0.5);
+    outline-offset: 2px;
+}
+
+/* Gear rotates 90deg when open */
+.peiwm-advanced-toggle__gear {
+    flex-shrink: 0;
+    transition: transform 300ms ease;
+}
+
+.peiwm-advanced-toggle.is-open .peiwm-advanced-toggle__gear {
+    transform: rotate(90deg);
+}
+
+/* Chevron flips when open */
+.peiwm-advanced-toggle__chevron {
+    flex-shrink: 0;
+    transition: transform 300ms ease;
+}
+
+.peiwm-advanced-toggle.is-open .peiwm-advanced-toggle__chevron {
+    transform: rotate(180deg);
+}
+
+/* Open state — switch to solid border */
+.peiwm-advanced-toggle.is-open {
+    color: #1a1a1a;
+    border-style: solid;
+    border-color: #d1d5db;
+}
+
+/* ============================================================
+   Advanced Panel — collapsed by default
+   ============================================================ */
+.peiwm-advanced-panel {
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+    transition:
+        max-height 350ms ease,
+        opacity 250ms ease,
+        margin-top 200ms ease;
+}
+
+.peiwm-advanced-panel.is-open {
+    max-height: 800px;
+    /* larger than any realistic content */
+    opacity: 1;
+    margin-top: 10px;
+}
+
+/* ============================================================
+   PRO Inline Row (inside advanced panel)
+   Keeps .peiwm-locked-section + .peiwm-open-premium-modal on
+   the same element so existing JS modal still works on click.
+   ============================================================ */
+
+.peiwm-inline-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    background: #fafafa;
+    position: relative;
+}
+
+.peiwm-pro-inline-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    background: #fafafa;
+    position: relative;
+    /* needed by .peiwm-locked-section::before */
+    cursor: pointer;
+    transition: background 150ms, border-color 150ms;
+}
+
+.peiwm-pro-inline-row:last-child {
+    margin-bottom: 0;
+}
+
+.peiwm-pro-inline-row:hover {
+    background: #f5f3ff;
+    border-color: #c4b5fd;
+}
+
+/* Override the default locked-section blur overlay —
+   we don't want full blur inside the panel rows */
+.peiwm-pro-inline-row.peiwm-locked-section::before {
+    display: none;
+}
+
+/* The row's label fills available space */
+.peiwm-pro-inline-row .peiwm-checkbox-label {
+    flex: 1;
+    opacity: 0.72;
+    cursor: pointer;
+}
+
+.peiwm-pro-inline-row:hover .peiwm-checkbox-label {
+    opacity: 0.92;
+}
+
+/* Disabled checkbox inside PRO row */
+.peiwm-pro-inline-row input[type="checkbox"] {
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   PRO Inline Badge (small pill next to label text)
+   ============================================================ */
+.peiwm-pro-inline-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    vertical-align: middle;
+    margin-left: 6px;
+    white-space: nowrap;
+}
+
+/* ============================================================
+   Upgrade Link (inline, per PRO row)
+   ============================================================ */
+.peiwm-pro-upgrade-link {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: #7c3aed;
+    text-decoration: none;
+    white-space: nowrap;
+    margin-top: 2px;
+    transition: opacity 150ms;
+}
+
+.peiwm-pro-upgrade-link:hover {
+    opacity: 0.7;
+    text-decoration: underline;
+    color: #7c3aed;
+}
+
+/* ============================================================
+   Always-visible locked row (e.g. "Basic Info" on Export Users)
+   ============================================================ */
+.peiwm-option-locked {
+    background: #f9f5f0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    border: 1px solid #e5e7eb;
+    margin-bottom: 8px;
+    cursor: default;
+}
+
+.peiwm-option-locked .peiwm-checkbox-label {
+    cursor: default;
+}
+
+.peiwm-option-locked input[type="checkbox"] {
+    cursor: default;
+    pointer-events: none;
+}
+
+/* ============================================================
+   Inline PRO Toast (not a modal)
+   Hidden until .is-visible added by JS
+   ============================================================ */
+.peiwm-pro-toast {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 11px 14px;
+    background: #f5f3ff;
+    border: 1px solid #c4b5fd;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #5b21b6;
+    position: relative;
+
+    /* Hidden state */
+    opacity: 0;
+    transform: translateY(-4px);
+    pointer-events: none;
+    transition: opacity 250ms ease, transform 250ms ease;
+    /* Use visibility so it doesn't take up space when hidden */
+    max-height: 0;
+    overflow: hidden;
+    padding: 0;
+    margin-top: 0;
+    border-width: 0;
+}
+
+.peiwm-pro-toast.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+    max-height: 120px;
+    padding: 11px 14px;
+    margin-top: 12px;
+    border-width: 1px;
+}
+
+.peiwm-pro-toast__icon {
+    flex-shrink: 0;
+    font-size: 14px;
+}
+
+.peiwm-pro-toast__text {
+    flex: 1;
+    line-height: 1.5;
+}
+
+.peiwm-pro-toast__text strong {
+    font-weight: 700;
+}
+
+.peiwm-pro-toast__cta {
+    padding: 4px 12px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    border-radius: 20px !important;
+    min-width: auto !important;
+    margin: 0 !important;
+    white-space: nowrap;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: #fff !important;
+    border: none !important;
+}
+
+.peiwm-pro-toast__close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    color: #7c3aed;
+    opacity: 0.6;
+    padding: 0 2px;
+    flex-shrink: 0;
+    transition: opacity 150ms;
+}
+
+.peiwm-pro-toast__close:hover {
+    opacity: 1;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+
+    .peiwm-advanced-panel,
+    .peiwm-advanced-toggle__gear,
+    .peiwm-advanced-toggle__chevron,
+    .peiwm-pro-toast {
+        transition: none !important;
     }
 }

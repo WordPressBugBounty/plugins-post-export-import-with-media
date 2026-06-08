@@ -1322,15 +1322,22 @@ class PEIWM_Post_Handler {
 				$new_url = wp_get_attachment_url( $attachment_id );
 				if ( $new_url && ! empty( $old_url ) ) {
 					// Build URL replacement map with regex pattern for resized variants.
-					// content_images[].url stores FULL-SIZE URL (e.g. image-scaled.jpg)
-					// but Gutenberg stores RESIZED variants in <img src> (e.g. image-scaled-653x1024.jpg)
-					// Plain str_replace won't match, so use regex pattern.
+					// content_images[].url stores the full-size URL which may end in
+					// WordPress auto-suffixes like -scaled or -rotated
+					// (e.g. image-scaled.jpg, image-rotated.jpg).
+					// Gutenberg stores RESIZED variants WITHOUT those suffixes
+					// (e.g. image-684x1024.jpg, not image-scaled-684x1024.jpg).
+					// So we must strip -scaled / -rotated from the base before building
+					// the regex, otherwise the pattern never matches content URLs.
 					$old_base_no_ext = preg_replace( '/\.[a-zA-Z0-9]+$/', '', $old_url );
 					$old_base_no_ext = preg_replace( '/-\d+x\d+$/', '', $old_base_no_ext );
-					
-					// Pattern: base + optional -WxH + any extension
-					$old_pattern = preg_quote( $old_base_no_ext, '/' ) . '(?:-\d+x\d+)?\.[a-zA-Z0-9]+';
-					
+					// Strip WordPress auto-generated suffixes so the pattern covers
+					// both the original name and any resized variant in content.
+					$old_base_no_ext = preg_replace( '/(?:-scaled|-rotated)$/', '', $old_base_no_ext );
+
+					// Pattern: base + optional WP suffix (-scaled/-rotated) + optional -WxH + any extension
+					$old_pattern = preg_quote( $old_base_no_ext, '/' ) . '(?:-scaled|-rotated)?(?:-\d+x\d+)?\.[a-zA-Z0-9]+';
+
 					$url_mapping[ $old_url ]       = $new_url; // exact match fallback
 					$url_regex_map[ $old_pattern ] = $new_url; // regex for resized variants
 				}
@@ -1361,8 +1368,9 @@ class PEIWM_Post_Handler {
 					if ( $new_url ) {
 						$old_base_no_ext = preg_replace( '/\.[a-zA-Z0-9]+$/', '', $old_url );
 						$old_base_no_ext = preg_replace( '/-\d+x\d+$/', '', $old_base_no_ext );
-						$old_pattern     = preg_quote( $old_base_no_ext, '/' ) . '(?:-\d+x\d+)?\.[a-zA-Z0-9]+';
-						
+						$old_base_no_ext = preg_replace( '/(?:-scaled|-rotated)$/', '', $old_base_no_ext );
+						$old_pattern     = preg_quote( $old_base_no_ext, '/' ) . '(?:-scaled|-rotated)?(?:-\d+x\d+)?\.[a-zA-Z0-9]+';
+
 						$url_mapping[ $old_url ]       = $new_url;
 						$url_regex_map[ $old_pattern ] = $new_url;
 					}

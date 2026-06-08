@@ -438,14 +438,24 @@ class PEIWM_Batch_Processor {
 			// Check if user wants to export all image sizes
 			$export_all_sizes = isset( $_POST['export_all_sizes'] ) && $_POST['export_all_sizes'] === '1';
 
+			// PRO: Advanced filters — date range and by-post
+			$is_pro    = PEIWM_Main::get_instance()->is_pro_active();
+			$date_from = $is_pro && isset( $_POST['media_date_from'] ) ? sanitize_text_field( wp_unslash( $_POST['media_date_from'] ) ) : '';
+			$date_to   = $is_pro && isset( $_POST['media_date_to'] )   ? sanitize_text_field( wp_unslash( $_POST['media_date_to'] ) )   : '';
+			$post_ids  = array();
+			if ( $is_pro && isset( $_POST['media_post_ids'] ) && '' !== $_POST['media_post_ids'] ) {
+				$post_ids = array_filter( array_map( 'absint', explode( ',', sanitize_text_field( wp_unslash( $_POST['media_post_ids'] ) ) ) ) );
+			}
+
+			$valid_from = ( $date_from && false !== DateTime::createFromFormat( 'Y-m-d', $date_from ) );
+			$valid_to   = ( $date_to   && false !== DateTime::createFromFormat( 'Y-m-d', $date_to )   );
+
 			// FIX: Raise limits for the planning phase too
 			@set_time_limit( 300 );
 			@ini_set( 'memory_limit', '512M' );
 
-			// FIX: Fetch only IDs — avoids loading 1427 WP_Post objects just to group them into batches
-			// FIX: suppress_filters=true prevents third-party plugins from capping the count
-			// FIX: post_status='inherit' is consistent with stats query
-			$attachment_ids = get_posts( array(
+			// Build base query args
+			$attachment_query = array(
 				'post_type'              => 'attachment',
 				'numberposts'            => -1,
 				'post_status'            => 'inherit',
@@ -454,7 +464,48 @@ class PEIWM_Batch_Processor {
 				'no_found_rows'          => true,
 				'update_post_meta_cache' => false,
 				'update_post_term_cache' => false,
-			) );
+			);
+
+			// PRO: date range filter
+			if ( $valid_from || $valid_to ) {
+				$date_entry = array( 'inclusive' => true );
+				if ( $valid_from ) {
+					$date_entry['after'] = $date_from . ' 00:00:00';
+				}
+				if ( $valid_to ) {
+					$date_entry['before'] = $date_to . ' 23:59:59';
+				}
+				$attachment_query['date_query'] = array( $date_entry );
+			}
+
+			// PRO: filter by post
+			if ( ! empty( $post_ids ) ) {
+				$attachment_query['post_parent__in'] = $post_ids;
+				$parent_attachment_ids = get_posts( $attachment_query );
+				unset( $attachment_query['post_parent__in'] );
+
+				$content_attachment_ids = array();
+				foreach ( $post_ids as $pid ) {
+					$thumb_id = get_post_thumbnail_id( $pid );
+					if ( $thumb_id ) {
+						$content_attachment_ids[] = absint( $thumb_id );
+					}
+					$post_obj = get_post( $pid );
+					if ( $post_obj && ! empty( $post_obj->post_content ) ) {
+						preg_match_all( '/wp-image-(\d+)/', $post_obj->post_content, $matches );
+						if ( ! empty( $matches[1] ) ) {
+							foreach ( $matches[1] as $img_id ) {
+								$content_attachment_ids[] = absint( $img_id );
+							}
+						}
+					}
+				}
+
+				$attachment_ids = array_values( array_unique( array_merge( $parent_attachment_ids, $content_attachment_ids ) ) );
+			} else {
+				// FIX: Fetch only IDs — avoids loading WP_Post objects just to group them into batches
+				$attachment_ids = get_posts( $attachment_query );
+			}
 
 			if ( empty( $attachment_ids ) ) {
 				wp_send_json_error( array( 'message' => esc_html__( 'No media files found to export', 'post-export-import-with-media' ) ) );

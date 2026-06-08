@@ -1,6 +1,24 @@
 jQuery(document).ready(function($) {
 	'use strict';
 
+	// Premium Modal handler for scheduled exports page
+	$(document).on('click', '.peiwm-open-premium-modal, .peiwm-locked-section', function (e) {
+		if ($(e.target).is('input, select, textarea, button:not(.peiwm-open-premium-modal), label, a')) return;
+		e.preventDefault();
+		e.stopPropagation();
+		const modal = $('#peiwm-premium-modal');
+		modal.show().addClass('peiwm-show');
+		modal.find('.peiwm-premium-close, .peiwm-modal-close').off('click').on('click', function () {
+			modal.removeClass('peiwm-show').hide();
+		});
+		modal.off('click.premium').on('click.premium', function (ev) {
+			if (ev.target === this) modal.removeClass('peiwm-show').hide();
+		});
+		$(document).off('keydown.premium-modal').on('keydown.premium-modal', function (ev) {
+			if (ev.key === 'Escape') modal.removeClass('peiwm-show').hide();
+		});
+	});
+
 	// Toggle email config visibility (only if PRO is active)
 	$('#enable_email_notifications').on('change', function() {
 		if ($(this).is(':checked')) {

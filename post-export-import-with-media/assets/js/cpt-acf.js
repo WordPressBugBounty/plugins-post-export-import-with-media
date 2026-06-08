@@ -68,6 +68,27 @@
 		$count.text( n + ' selected' );
 	}
 
+	/**
+	 * Return comma-separated selected ACF field keys, or empty string for "all fields".
+	 */
+	function getSelectedAcfFieldKeys() {
+		if ( ! $( '#peiwm-cpt-export-acf-fields' ).is( ':checked' ) ) {
+			return '';
+		}
+		var $picker = $( '#peiwm-cpt-acf-field-picker' );
+		if ( ! $picker.is( ':visible' ) ) {
+			return ''; // picker hidden = export all
+		}
+		var keys = [];
+		$picker.find( '.peiwm-acf-field-checkbox:checked' ).each( function () {
+			keys.push( $( this ).val() );
+		} );
+		// If all are checked (or none visible), treat as "export all"
+		var total   = $picker.find( '.peiwm-acf-field-checkbox' ).length;
+		var checked = keys.length;
+		return ( checked === 0 || checked === total ) ? '' : keys.join( ',' );
+	}
+
 	// =========================================================================
 	// MODAL UTILITIES
 	// =========================================================================
@@ -185,6 +206,10 @@
 	var importedFilesData = [];  // Array of arrays — one per file (for import processing)
 	var importedFileNames = [];  // File names parallel to importedFilesData
 
+	// ACF field picker state
+	var acfFieldsLoaded   = '';  // Last CPT name for which fields were loaded (cache key)
+	var acfFieldsCache    = [];  // Cached groups from the last load
+
 	// =========================================================================
 	// PAGE READY
 	// =========================================================================
@@ -220,6 +245,52 @@
 			if ( cpt && $( '#peiwm-cpt-export-selective' ).is( ':checked' ) ) {
 				loadExportPostsList( cpt, 0, false );
 			}
+			// Load ACF field picker for the selected CPT
+			if ( cpt && $( '#peiwm-cpt-export-acf-fields' ).is( ':checked' ) ) {
+				loadAcfFieldPicker( cpt );
+			} else {
+				$( '#peiwm-cpt-acf-field-picker' ).hide();
+			}
+		} );
+
+		// --- Toggle ACF field picker when ACF checkbox changes ---
+		$( '#peiwm-cpt-export-acf-fields' ).on( 'change', function () {
+			var cpt = $( '#peiwm-cpt-select' ).val();
+			if ( $( this ).is( ':checked' ) && cpt ) {
+				loadAcfFieldPicker( cpt );
+			} else {
+				$( '#peiwm-cpt-acf-field-picker' ).hide();
+			}
+		} );
+
+		// --- ACF field search ---
+		$( '#peiwm-cpt-acf-field-search' ).on( 'keyup', function () {
+			var q = $( this ).val().toLowerCase();
+			$( '#peiwm-cpt-acf-fields-list .peiwm-acf-field-item' ).each( function () {
+				var label = $( this ).data( 'label' ) || '';
+				var name  = $( this ).data( 'name' )  || '';
+				$( this ).toggle( label.toLowerCase().indexOf( q ) !== -1 || name.toLowerCase().indexOf( q ) !== -1 );
+			} );
+			updateAcfFieldCount();
+		} );
+
+		// --- ACF field select/deselect all ---
+		$( '#peiwm-cpt-acf-select-all-fields' ).on( 'click', function () {
+			$( '#peiwm-cpt-acf-fields-list .peiwm-acf-field-checkbox:visible' ).prop( 'checked', true );
+			// Also check hidden ones (select truly all)
+			$( '#peiwm-cpt-acf-fields-list .peiwm-acf-field-checkbox' ).prop( 'checked', true );
+			updateAcfFieldCount();
+		} );
+
+		$( '#peiwm-cpt-acf-deselect-all-fields' ).on( 'click', function () {
+			$( '#peiwm-cpt-acf-fields-list .peiwm-acf-field-checkbox' ).prop( 'checked', false );
+			updateAcfFieldCount();
+		} );
+
+		// --- Export All CPT Types button ---
+		$( document ).on( 'click', '#peiwm-export-all-cpts', function () {
+			var exportAcf = $( '#peiwm-cpt-export-acf-fields' ).is( ':checked' ) ? '1' : '0';
+			startExportAllCpts( exportAcf );
 		} );
 
 		$( '#peiwm-cpt-export-selective' ).on( 'change', function () {
@@ -266,14 +337,15 @@
 				showError( s.select_post_type );
 				return;
 			}
-			var exportAcf = $( '#peiwm-cpt-export-acf-fields' ).is( ':checked' ) ? '1' : '0';
-			var isSelective = $( '#peiwm-cpt-export-selective' ).is( ':checked' );
-			var selectedIds = isSelective ? getSelectedIds( $( '#peiwm-cpt-export-posts-list' ) ) : [];
+			var exportAcf    = $( '#peiwm-cpt-export-acf-fields' ).is( ':checked' ) ? '1' : '0';
+			var acfFieldKeys = getSelectedAcfFieldKeys();
+			var isSelective  = $( '#peiwm-cpt-export-selective' ).is( ':checked' );
+			var selectedIds  = isSelective ? getSelectedIds( $( '#peiwm-cpt-export-posts-list' ) ) : [];
 
 			if ( isBatch && ! isSelective ) {
-				startBatchExport( cpt, exportAcf );
+				startBatchExport( cpt, exportAcf, acfFieldKeys );
 			} else {
-				startChunkedExport( cpt, exportAcf, selectedIds );
+				startChunkedExport( cpt, exportAcf, selectedIds, acfFieldKeys );
 			}
 		} );
 
@@ -391,6 +463,165 @@
 	} );
 
 	// =========================================================================
+	// ACF FIELD PICKER
+	// =========================================================================
+
+	function updateAcfFieldCount() {
+		var total   = $( '#peiwm-cpt-acf-fields-list .peiwm-acf-field-checkbox' ).length;
+		var checked = $( '#peiwm-cpt-acf-fields-list .peiwm-acf-field-checkbox:checked' ).length;
+		var label   = checked === total ? 'All ' + total + ' fields' : checked + ' / ' + total + ' selected';
+		$( '#peiwm-cpt-acf-fields-count' ).text( label );
+	}
+
+	function loadAcfFieldPicker( cpt ) {
+		var $picker = $( '#peiwm-cpt-acf-field-picker' );
+		var $list   = $( '#peiwm-cpt-acf-fields-list' );
+		var $search = $( '#peiwm-cpt-acf-field-search' );
+
+		$picker.show();
+
+		// Use cache if same CPT
+		if ( acfFieldsLoaded === cpt && acfFieldsCache.length ) {
+			renderAcfFieldPickerGroups( acfFieldsCache );
+			return;
+		}
+
+		$search.val( '' );
+		$list.html( '<div style="padding:10px 12px;color:#6b7280;font-size:0.85rem;">Loading fields…</div>' );
+		$( '#peiwm-cpt-acf-fields-count' ).text( '' );
+
+		$.post( cfg.ajax_url, {
+			action:    'peim_get_cpt_acf_fields',
+			nonce:     cfg.nonce,
+			post_type: cpt,
+		}, function ( res ) {
+			if ( ! res.success || ! res.data || ! res.data.groups || ! res.data.groups.length ) {
+				$list.html( '<div style="padding:10px 12px;color:#9ca3af;font-size:0.85rem;">No ACF fields found for this post type.</div>' );
+				$( '#peiwm-cpt-acf-fields-count' ).text( '' );
+				return;
+			}
+			acfFieldsLoaded = cpt;
+			acfFieldsCache  = res.data.groups;
+			renderAcfFieldPickerGroups( res.data.groups );
+		} );
+	}
+
+	function renderAcfFieldPickerGroups( groups ) {
+		var $list = $( '#peiwm-cpt-acf-fields-list' );
+		$list.empty();
+
+		$.each( groups, function ( gi, group ) {
+			// Group header
+			var $header = $(
+				'<div class="peiwm-acf-group-header" style="' +
+					'display:flex;align-items:center;gap:6px;' +
+					'padding:5px 10px;background:#f1f5f9;' +
+					'border-bottom:1px solid #e2e8f0;font-size:0.8rem;font-weight:600;color:#374151;' +
+					'position:sticky;top:0;z-index:1;cursor:pointer;" ' +
+					'data-group="' + gi + '">' +
+					'<span class="peiwm-acf-group-toggle" style="font-size:0.7rem;transition:transform 0.15s;">▼</span>' +
+					'<label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1;">' +
+						'<input type="checkbox" class="peiwm-acf-group-checkbox" data-group="' + gi + '" checked ' +
+							'style="margin:0;">' +
+						'<span>' + $( '<span>' ).text( group.title ).html() + '</span>' +
+						'<span style="font-weight:400;color:#6b7280;">(' + group.fields.length + ' fields)</span>' +
+					'</label>' +
+				'</div>'
+			);
+
+			var $fields = $( '<div class="peiwm-acf-group-fields" data-group="' + gi + '" style="padding:2px 0;"></div>' );
+
+			$.each( group.fields, function ( fi, field ) {
+				var typeColor = {
+					text: '#2563eb', textarea: '#2563eb', number: '#7c3aed',
+					image: '#059669', file: '#059669', gallery: '#059669',
+					select: '#d97706', checkbox: '#d97706', radio: '#d97706', true_false: '#d97706',
+					relationship: '#dc2626', post_object: '#dc2626', taxonomy: '#0891b2',
+					repeater: '#7c3aed', group: '#7c3aed', flexible_content: '#7c3aed',
+				}[ field.type ] || '#6b7280';
+
+				var $item = $(
+					'<label class="peiwm-acf-field-item" ' +
+						'data-label="' + $( '<span>' ).text( field.label ).html() + '" ' +
+						'data-name="' + $( '<span>' ).text( field.name ).html() + '" ' +
+						'style="display:flex;align-items:center;gap:8px;padding:5px 12px 5px 24px;' +
+							'cursor:pointer;border-bottom:1px solid #f1f5f9;' +
+							'transition:background 0.1s;" ' +
+						'onmouseover="this.style.background=\'#f8fafc\'" ' +
+						'onmouseout="this.style.background=\'\'">' +
+						'<input type="checkbox" class="peiwm-acf-field-checkbox" ' +
+							'value="' + $( '<span>' ).text( field.key ).html() + '" checked ' +
+							'style="margin:0;flex-shrink:0;">' +
+						'<span style="flex:1;min-width:0;">' +
+							'<span style="font-size:0.85rem;color:#111827;font-weight:500;">' +
+								$( '<span>' ).text( field.label ).html() +
+							'</span>' +
+							'<span style="font-size:0.75rem;color:#9ca3af;margin-left:4px;">' +
+								field.name +
+							'</span>' +
+						'</span>' +
+						'<span style="font-size:0.7rem;padding:1px 6px;border-radius:10px;' +
+							'background:#f1f5f9;color:' + typeColor + ';font-weight:500;flex-shrink:0;">' +
+							field.type +
+						'</span>' +
+					'</label>'
+				);
+
+				$item.find( '.peiwm-acf-field-checkbox' ).on( 'change', function () {
+					updateGroupCheckboxState( gi );
+					updateAcfFieldCount();
+				} );
+
+				$fields.append( $item );
+			} );
+
+			// Group checkbox toggles all children
+			$header.find( '.peiwm-acf-group-checkbox' ).on( 'change', function ( e ) {
+				e.stopPropagation();
+				var checked = $( this ).is( ':checked' );
+				$fields.find( '.peiwm-acf-field-checkbox' ).prop( 'checked', checked );
+				updateAcfFieldCount();
+			} );
+
+			// Click on header row (not checkbox) collapses group
+			$header.on( 'click', function ( e ) {
+				if ( $( e.target ).is( 'input' ) ) { return; }
+				var $toggle = $header.find( '.peiwm-acf-group-toggle' );
+				if ( $fields.is( ':visible' ) ) {
+					$fields.slideUp( 150 );
+					$toggle.css( 'transform', 'rotate(-90deg)' );
+				} else {
+					$fields.slideDown( 150 );
+					$toggle.css( 'transform', '' );
+				}
+			} );
+
+			$list.append( $header ).append( $fields );
+		} );
+
+		updateAcfFieldCount();
+
+		// Delegate: field checkbox change also updates count
+		$list.off( 'change.acf-count' ).on( 'change.acf-count', '.peiwm-acf-field-checkbox', function () {
+			updateAcfFieldCount();
+		} );
+	}
+
+	function updateGroupCheckboxState( gi ) {
+		var $fields   = $( '#peiwm-cpt-acf-fields-list .peiwm-acf-group-fields[data-group="' + gi + '"]' );
+		var total     = $fields.find( '.peiwm-acf-field-checkbox' ).length;
+		var checked   = $fields.find( '.peiwm-acf-field-checkbox:checked' ).length;
+		var $groupChk = $( '#peiwm-cpt-acf-fields-list .peiwm-acf-group-checkbox[data-group="' + gi + '"]' );
+		if ( checked === 0 ) {
+			$groupChk.prop( { checked: false, indeterminate: false } );
+		} else if ( checked === total ) {
+			$groupChk.prop( { checked: true, indeterminate: false } );
+		} else {
+			$groupChk.prop( { checked: false, indeterminate: true } );
+		}
+	}
+
+	// =========================================================================
 	// LOAD CPT LIST
 	// =========================================================================
 
@@ -412,6 +643,146 @@
 				opts += '<option value="' + cpt.name + '">' + cpt.label + ' (' + cpt.count + ')</option>';
 			} );
 			$( '#peiwm-cpt-select' ).html( opts );
+
+			// Render "Export All CPT Types" button once we know there are CPTs
+			if ( res.data.length > 1 ) {
+				var $exportRow = $( '#peiwm-export-cpt' ).closest( '.peiwm-form-row, p, div' );
+				if ( ! $( '#peiwm-export-all-cpts' ).length ) {
+					var totalLabel = res.data.length + ' post type' + ( res.data.length === 1 ? '' : 's' );
+					$( '#peiwm-export-cpt' ).after(
+						'<button type="button" id="peiwm-export-all-cpts" class="button button-secondary" style="margin-left:0.5rem;" title="Export every CPT to a separate JSON file">' +
+						'⬇ Export All (' + totalLabel + ')' +
+						'</button>'
+					);
+				}
+			}
+		} );
+	}
+
+	// =========================================================================
+	// EXPORT: ALL CPT TYPES (one JSON file per CPT, sequential)
+	// =========================================================================
+
+	/**
+	 * Fetch and download all non-built-in CPTs one by one.
+	 * Each CPT becomes one JSON download. Uses the same peim_export_all_cpts
+	 * AJAX endpoint (which mirrors ajax_export_cpt but is dedicated so the
+	 * single-CPT export flow is unaffected).
+	 */
+	function startExportAllCpts( exportAcf ) {
+		if ( cfg.is_pro_active !== '1' ) { return; }
+
+		var $progress = $( '#peiwm-cpt-export-progress' );
+		var $btn      = $( '#peiwm-export-all-cpts' );
+		var $btnSingle = $( '#peiwm-export-cpt' );
+
+		$progress.show();
+		$btn.prop( 'disabled', true ).text( 'Exporting all…' );
+		$btnSingle.prop( 'disabled', true );
+		$progress.find( '.peiwm-log' ).empty();
+		updateProgress( $progress, 0, 'Loading CPT list…' );
+
+		// First fetch the fresh CPT list
+		$.post( cfg.ajax_url, {
+			action: 'peim_get_cpt_list',
+			nonce:  cfg.nonce,
+		}, function ( res ) {
+			if ( ! res.success || ! res.data.length ) {
+				appendLog( $progress, '✗ No post types found.', true );
+				$btn.prop( 'disabled', false ).text( '⬇ Export All' );
+				$btnSingle.prop( 'disabled', false );
+				return;
+			}
+
+			var cptList      = res.data; // [{name, label, count}]
+			var totalCpts    = cptList.length;
+			var currentCpt   = 0;
+			var totalExported = 0;
+
+			appendLog( $progress, '📋 Found ' + totalCpts + ' post type(s). Starting export…' );
+
+			function exportNextCpt() {
+				if ( currentCpt >= totalCpts ) {
+					// All done
+					updateProgress( $progress, 100, 'All CPTs exported! (' + totalExported + ' posts total)' );
+					appendLog( $progress, '✅ Export complete! ' + totalExported + ' posts across ' + totalCpts + ' post type(s).' );
+					showSuccess( 'All CPTs exported! ' + totalExported + ' posts in ' + totalCpts + ' files.' );
+					$btn.prop( 'disabled', false ).text( '⬇ Export All (' + totalCpts + ' post types)' );
+					$btnSingle.prop( 'disabled', false );
+					return;
+				}
+
+				var cpt         = cptList[ currentCpt ];
+				var cptName     = cpt.name;
+				var cptLabel    = cpt.label;
+				var cptCount    = cpt.count || 0;
+				var page        = 1;
+				var perPage     = 50;
+				var cptPosts    = [];
+
+				$btn.text( 'Exporting ' + cptLabel + '… (' + ( currentCpt + 1 ) + '/' + totalCpts + ')' );
+				appendLog( $progress, '📁 Exporting: ' + cptLabel + ' (' + cptCount + ' posts)' );
+
+				function fetchCptChunk() {
+					$.ajax( {
+						url:  cfg.ajax_url,
+						type: 'POST',
+						data: {
+							action:            'peim_export_all_cpts',
+							nonce:             cfg.nonce,
+							post_type:         cptName,
+							export_acf_fields: exportAcf,
+							page:              page,
+							per_page:          perPage,
+						},
+						success: function ( res2 ) {
+							if ( ! res2.success ) {
+								appendLog( $progress, '  ✗ Error exporting ' + cptLabel + ': ' + ( res2.data && res2.data.message ? res2.data.message : 'unknown' ), true );
+								currentCpt++;
+								exportNextCpt();
+								return;
+							}
+
+							cptPosts = cptPosts.concat( res2.data.posts );
+
+							var fetched  = res2.data.posts.length;
+							var total    = res2.data.total || cptCount;
+							var pctCpt   = total > 0 ? Math.round( ( cptPosts.length / total ) * 100 ) : 100;
+							var pctTotal = Math.round( ( ( currentCpt + pctCpt / 100 ) / totalCpts ) * 100 );
+							updateProgress( $progress, pctTotal,
+								'Exporting ' + cptLabel + ': ' + cptPosts.length + ' / ' + total +
+								' — CPT ' + ( currentCpt + 1 ) + ' of ' + totalCpts
+							);
+
+							if ( res2.data.has_more ) {
+								page++;
+								setTimeout( fetchCptChunk, 150 );
+							} else {
+								// Done with this CPT — trigger download
+								if ( cptPosts.length > 0 ) {
+									var filename = 'cpt-' + cptName + '-export_' + new Date().toISOString().slice( 0, 10 ) + '.json';
+									triggerJsonDownload( JSON.stringify( cptPosts, null, 2 ), filename );
+									appendLog( $progress, '  ✓ Downloaded: ' + filename + ' (' + cptPosts.length + ' posts)' );
+									totalExported += cptPosts.length;
+								} else {
+									appendLog( $progress, '  ⚠ ' + cptLabel + ': no posts found, skipped.' );
+								}
+								currentCpt++;
+								setTimeout( exportNextCpt, 400 );
+							}
+						},
+						error: function ( xhr, status, error ) {
+							appendLog( $progress, '  ✗ Network error for ' + cptLabel + ': ' + error, true );
+							currentCpt++;
+							setTimeout( exportNextCpt, 400 );
+						},
+					} );
+				}
+
+				fetchCptChunk();
+			}
+
+			exportNextCpt();
 		} );
 	}
 
@@ -528,10 +899,11 @@
 	// EXPORT: CHUNKED (non-batch) — mirrors admin.js export with file splitting
 	// =========================================================================
 
-	function startChunkedExport( cpt, exportAcf, selectedIds ) {
+	function startChunkedExport( cpt, exportAcf, selectedIds, acfFieldKeys ) {
 		var $progress  = $( '#peiwm-cpt-export-progress' );
 		var $btn       = $( '#peiwm-export-cpt' );
 		var isSelective = selectedIds.length > 0;
+		acfFieldKeys    = acfFieldKeys || '';
 
 		// postsPerFile: selective = all in one file; non-selective = export_json_size (default 500)
 		var postsPerFile = isSelective
@@ -550,6 +922,11 @@
 		$progress.show();
 		$btn.prop( 'disabled', true ).text( 'Exporting...' );
 		$progress.find( '.peiwm-log' ).empty();
+
+		if ( acfFieldKeys ) {
+			var keyCount = acfFieldKeys.split( ',' ).length;
+			appendLog( $progress, '🔍 Exporting ' + keyCount + ' selected ACF field(s)' );
+		}
 
 		function downloadFile( posts ) {
 			fileNum++;
@@ -570,6 +947,7 @@
 					nonce:             cfg.nonce,
 					post_type:         cpt,
 					export_acf_fields: exportAcf,
+					acf_field_keys:    acfFieldKeys,
 					page:              page,
 					per_page:          Math.min( needed, ajaxChunkSize ),
 				};
@@ -657,19 +1035,26 @@
 	// EXPORT: BATCH (via PHP batch session)
 	// =========================================================================
 
-	function startBatchExport( cpt, exportAcf ) {
+	function startBatchExport( cpt, exportAcf, acfFieldKeys ) {
 		var $progress = $( '#peiwm-cpt-export-progress' );
 		$progress.show();
 		$( '#peiwm-export-cpt' ).prop( 'disabled', true );
 		$progress.find( '.peiwm-log' ).empty();
+		acfFieldKeys = acfFieldKeys || '';
 
 		updateProgress( $progress, 0, s.processing );
 
+		if ( acfFieldKeys ) {
+			var keyCount = acfFieldKeys.split( ',' ).length;
+			appendLog( $progress, '🔍 Exporting ' + keyCount + ' selected ACF field(s)' );
+		}
+
 		$.post( cfg.ajax_url, {
-			action:           'peim_batch_export_cpt_start',
-			nonce:            cfg.nonce,
-			post_type:        cpt,
+			action:            'peim_batch_export_cpt_start',
+			nonce:             cfg.nonce,
+			post_type:         cpt,
 			export_acf_fields: exportAcf,
+			acf_field_keys:    acfFieldKeys,
 		}, function ( res ) {
 			if ( ! res.success ) {
 				appendLog( $progress, s.error + ' ' + ( res.data && res.data.message ? res.data.message : '' ), true );
