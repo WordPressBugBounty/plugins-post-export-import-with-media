@@ -186,6 +186,7 @@ class PEIWM_Batch_Processor {
 					'meta'          => $this->get_post_meta_secure( $post->ID ),
 					'featured_image' => $this->get_featured_image_secure( $post->ID ),
 					'content_images' => $this->get_content_images_secure( $post->post_content ),
+					'source_url'    => home_url(),
 				);
 
 				// WPML data export — only if checkbox was sent AND multilingual plugin is active
@@ -368,6 +369,7 @@ class PEIWM_Batch_Processor {
 					'meta'          => $this->get_post_meta_secure( $page->ID ),
 					'featured_image' => $this->get_featured_image_secure( $page->ID ),
 					'content_images' => $this->get_content_images_secure( $page->post_content ),
+					'source_url'    => home_url(),
 				);
 
 				// WPML data export — only if checkbox was sent AND multilingual plugin is active

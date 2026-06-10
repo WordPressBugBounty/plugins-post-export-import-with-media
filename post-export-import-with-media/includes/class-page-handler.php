@@ -194,6 +194,7 @@ class PEIWM_Page_Handler {
 			'meta'           => $this->get_page_meta_secure( $page->ID ),
 			'featured_image' => $this->get_featured_image_secure( $page->ID ),
 			'content_images' => $this->get_content_images_secure( $page->post_content ),
+			'source_url'     => home_url(),
 		);
 
 		if ( $export_wpml && ( defined( 'ICL_SITEPRESS_VERSION' ) || defined( 'POLYLANG_VERSION' ) ) ) {
@@ -386,6 +387,16 @@ class PEIWM_Page_Handler {
 			}
 			// If not checking media, we skip image processing entirely - images remain as placeholders in content
 
+			// Replace internal links from the source site with the destination site URL.
+			$source_url = isset( $sanitized_page_data['source_url'] ) ? esc_url_raw( $sanitized_page_data['source_url'] ) : '';
+			$dest_url   = untrailingslashit( home_url() );
+			if ( ! empty( $source_url ) ) {
+				$source_url = untrailingslashit( $source_url );
+				if ( $source_url !== $dest_url ) {
+					$updated_content = str_replace( $source_url, $dest_url, $updated_content );
+				}
+			}
+
 			// Import featured image
 			if ( $check_media_library && ! empty( $sanitized_page_data['featured_image'] ) ) {
 				$this->import_featured_image_secure( $page_id, $sanitized_page_data['featured_image'], $download_missing_images );
@@ -522,12 +533,23 @@ class PEIWM_Page_Handler {
 	 * @return array Page meta
 	 */
 	private function get_page_meta_secure( $page_id ) {
-		$meta = get_post_meta( $page_id );
+		$meta        = get_post_meta( $page_id );
 		$secure_meta = array();
 
 		foreach ( $meta as $key => $values ) {
 			if ( ! str_starts_with( $key, '_' ) ) { // Skip private meta
-				$secure_meta[ sanitize_key( $key ) ] = array_map( 'sanitize_text_field', $values );
+				$safe_key = sanitize_key( $key );
+				$secure_meta[ $safe_key ] = array_map( function( $value ) {
+					// Preserve serialized data (ACF repeaters, flexible content, link fields, etc.)
+					// get_post_meta() already unserializes — re-serialize so the JSON carries the
+					// raw DB string which can be written back intact on import.
+					if ( is_array( $value ) || is_object( $value ) ) {
+						return serialize( $value );
+					}
+					// Use wp_kses_post() instead of sanitize_text_field() so WYSIWYG/HTML meta
+					// values (ACF textarea, wysiwyg fields) are preserved with their markup intact.
+					return wp_kses_post( $value );
+				}, $values );
 			}
 		}
 
@@ -654,6 +676,7 @@ class PEIWM_Page_Handler {
 			'featured_image' => isset( $page_data['featured_image'] ) ? $page_data['featured_image'] : null,
 			'content_images' => isset( $page_data['content_images'] ) && is_array( $page_data['content_images'] ) ? $page_data['content_images'] : array(),
 			'wpml_data'     => isset( $page_data['wpml_data'] ) && is_array( $page_data['wpml_data'] ) ? $page_data['wpml_data'] : null,
+			'source_url'    => isset( $page_data['source_url'] ) ? esc_url_raw( $page_data['source_url'] ) : '',
 		);
 	}
 
@@ -867,15 +890,25 @@ class PEIWM_Page_Handler {
 	private function import_page_meta_secure( $page_id, $meta_data ) {
 		foreach ( $meta_data as $key => $values ) {
 			$safe_key = sanitize_key( $key );
-			
+
 			if ( empty( $safe_key ) || str_starts_with( $safe_key, '_' ) ) {
 				continue; // Skip invalid or private keys
 			}
 
 			delete_post_meta( $page_id, $safe_key );
-			
+
 			foreach ( (array) $values as $value ) {
-				add_post_meta( $page_id, $safe_key, sanitize_text_field( $value ) );
+				// Detect PHP-serialized strings (ACF repeaters, flex content, link fields).
+				// maybe_unserialize() returns the original string when it isn't serialized,
+				// and returns the real PHP value (array/object) when it is. WordPress's
+				// add_post_meta() will re-serialize arrays/objects automatically.
+				$unserialized = maybe_unserialize( $value );
+				if ( is_array( $unserialized ) || is_object( $unserialized ) ) {
+					add_post_meta( $page_id, $safe_key, $unserialized );
+				} else {
+					// Use wp_kses_post() to preserve HTML from WYSIWYG/wysiwyg ACF fields.
+					add_post_meta( $page_id, $safe_key, wp_kses_post( $value ) );
+				}
 			}
 		}
 	}

@@ -119,6 +119,7 @@ class PEIWM_Post_Handler {
 					'meta'          => $this->get_post_meta_secure( $post->ID ),
 					'featured_image' => $this->get_featured_image_secure( $post->ID ),
 					'content_images' => $this->get_content_images_secure( $post->post_content ),
+					'source_url'    => home_url(),
 					'acf_fields'    => array(),
 				);
 
@@ -265,6 +266,7 @@ class PEIWM_Post_Handler {
 					'meta'           => $this->get_post_meta_secure( $post->ID ),
 					'featured_image' => $this->get_featured_image_secure( $post->ID ),
 					'content_images' => $this->get_content_images_secure( $post->post_content ),
+					'source_url'    => home_url(),
 					'acf_fields'    => array(),
 				);
 
@@ -621,6 +623,18 @@ class PEIWM_Post_Handler {
 			}
 			// If not checking media, we skip image processing entirely - images remain as placeholders in content
 
+			// Replace internal links from the source site with the destination site URL.
+			// source_url is stamped at export time; if it differs from the current site we
+			// do a simple string replacement so all internal hrefs and srcsets update correctly.
+			$source_url = isset( $sanitized_post_data['source_url'] ) ? esc_url_raw( $sanitized_post_data['source_url'] ) : '';
+			$dest_url   = untrailingslashit( home_url() );
+			if ( ! empty( $source_url ) ) {
+				$source_url = untrailingslashit( $source_url );
+				if ( $source_url !== $dest_url ) {
+					$updated_content = str_replace( $source_url, $dest_url, $updated_content );
+				}
+			}
+
 			// Import featured image
 			if ( $check_media_library && ! empty( $sanitized_post_data['featured_image'] ) ) {
 				$this->import_featured_image_secure( $post_id, $sanitized_post_data['featured_image'], $download_missing_images );
@@ -857,13 +871,21 @@ class PEIWM_Post_Handler {
 				// Use the raw key for SEO keys (they contain underscores that sanitize_key would strip).
 				$safe_key = sanitize_text_field( $key );
 
-				// Sanitize values — preserve HTML in SEO meta descriptions.
+				// Sanitize values — preserve HTML in SEO meta, re-serialize structured ACF data.
 				$secure_meta[ $safe_key ] = array_map( function( $value ) use ( $key ) {
 					// SEO meta may contain HTML (focus keyword lists, descriptions).
 					if ( $this->is_seo_meta_key( $key ) ) {
 						return wp_kses( $value, array( 'a' => array( 'href' => array(), 'title' => array() ), 'em' => array(), 'strong' => array() ) );
 					}
-					return sanitize_text_field( $value );
+					// Preserve serialized data (ACF repeaters, flexible content, link fields, etc.)
+					// get_post_meta() already unserializes — re-serialize so the JSON carries the
+					// raw DB string which can be written back intact on import.
+					if ( is_array( $value ) || is_object( $value ) ) {
+						return serialize( $value );
+					}
+					// Use wp_kses_post() instead of sanitize_text_field() so WYSIWYG/HTML meta
+					// values (ACF textarea, wysiwyg fields) are preserved with their markup intact.
+					return wp_kses_post( $value );
 				}, $values );
 			}
 		}
@@ -923,6 +945,7 @@ class PEIWM_Post_Handler {
 			'content_images' => isset( $post_data['content_images'] ) && is_array( $post_data['content_images'] ) ? $post_data['content_images'] : array(),
 			'acf_fields'    => isset( $post_data['acf_fields'] ) && is_array( $post_data['acf_fields'] ) ? $post_data['acf_fields'] : array(),
 			'wpml_data'     => isset( $post_data['wpml_data'] ) && is_array( $post_data['wpml_data'] ) ? $post_data['wpml_data'] : null,
+			'source_url'    => isset( $post_data['source_url'] ) ? esc_url_raw( $post_data['source_url'] ) : '',
 		);
 	}
 	 
@@ -976,13 +999,22 @@ class PEIWM_Post_Handler {
 			delete_post_meta( $post_id, $safe_key );
 
 			foreach ( (array) $values as $value ) {
-				// Preserve HTML in SEO meta; sanitize everything else as plain text.
+				// Preserve HTML in SEO meta; handle serialized ACF data; sanitize plain text.
 				if ( $this->is_seo_meta_key( $safe_key ) ) {
 					$clean_value = wp_kses( $value, array( 'a' => array( 'href' => array(), 'title' => array() ), 'em' => array(), 'strong' => array() ) );
+					add_post_meta( $post_id, $safe_key, $clean_value );
 				} else {
-					$clean_value = sanitize_text_field( $value );
+					// Detect PHP-serialized strings (ACF repeaters, flex content, link fields).
+					// maybe_unserialize() returns the real PHP value when serialized, or the
+					// original string unchanged. WordPress re-serializes arrays/objects automatically.
+					$unserialized = maybe_unserialize( $value );
+					if ( is_array( $unserialized ) || is_object( $unserialized ) ) {
+						add_post_meta( $post_id, $safe_key, $unserialized );
+					} else {
+						// Use wp_kses_post() to preserve HTML from WYSIWYG/wysiwyg ACF fields.
+						add_post_meta( $post_id, $safe_key, wp_kses_post( $value ) );
+					}
 				}
-				add_post_meta( $post_id, $safe_key, $clean_value );
 			}
 		}
 	}

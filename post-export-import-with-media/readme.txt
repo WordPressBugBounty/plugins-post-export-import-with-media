@@ -4,7 +4,7 @@ Tags: export-media, import, post-export, page-export, migration
 Requires at least: 6.7
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable Tag: 1.12.0
+Stable Tag: 1.13.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -186,6 +186,11 @@ A: Not at all! The plugin is designed to be beginner-friendly with a simple inte
 4. Dashboard of WordPress Settings Export/Import.
 
 == Changelog ==
+
+= 1.13.0 – 10 June 2026 =
+* **New:** Added Internal link support when export/Import
+* **New:** Added  CPT & ACF and Users export types in Scheduled Exports
+* **Fix:** Added support for Advanced Custom Fields (ACF) Repeater fields in posts and pages. 
 
 = 1.12.0 – 08 June 2026 =
 * **New:** Added media export by upload date range.

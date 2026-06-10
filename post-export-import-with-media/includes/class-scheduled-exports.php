@@ -36,7 +36,7 @@ class PEIWM_Scheduled_Exports {
 		'enable_backup_rotation' => false,
 		'keep_backups_count' => 5,
 		'storage_mode' => 'local', // local, google_drive
-		'export_types' => array( 'posts', 'pages', 'media', 'settings' ),
+	'export_types' => array( 'posts', 'pages', 'media', 'settings' ),
 	);
 
 	/**
@@ -108,7 +108,12 @@ class PEIWM_Scheduled_Exports {
 		$sanitized['enable_backup_rotation'] = isset( $input['enable_backup_rotation'] ) ? (bool) $input['enable_backup_rotation'] : false;
 		$sanitized['keep_backups_count'] = isset( $input['keep_backups_count'] ) ? absint( $input['keep_backups_count'] ) : 5;
 		$sanitized['storage_mode'] = isset( $input['storage_mode'] ) ? sanitize_text_field( $input['storage_mode'] ) : 'local';
-		$sanitized['export_types'] = isset( $input['export_types'] ) && is_array( $input['export_types'] ) ? array_map( 'sanitize_text_field', $input['export_types'] ) : array( 'posts' );
+		$sanitized['export_types'] = isset( $input['export_types'] ) && is_array( $input['export_types'] )
+			? array_values( array_intersect(
+				array_map( 'sanitize_text_field', $input['export_types'] ),
+				array( 'posts', 'pages', 'media', 'settings', 'cpt', 'users' )
+			) )
+			: array( 'posts' );
 
 		// Validate ranges
 		if ( $sanitized['keep_backups_count'] < 1 ) {
@@ -270,6 +275,18 @@ class PEIWM_Scheduled_Exports {
 						$exported_files[] = $file;
 					}
 					break;
+				case 'cpt':
+					$file = $this->export_cpt_scheduled( $backup_dir, $filename );
+					if ( $file ) {
+						$exported_files[] = $file;
+					}
+					break;
+				case 'users':
+					$file = $this->export_users_scheduled( $backup_dir, $filename );
+					if ( $file ) {
+						$exported_files[] = $file;
+					}
+					break;
 			}
 		}
 
@@ -345,6 +362,7 @@ class PEIWM_Scheduled_Exports {
 				'meta'          => $get_meta->invoke( $post_handler, $post->ID ),
 				'featured_image' => $get_featured->invoke( $post_handler, $post->ID ),
 				'content_images' => $get_content_images->invoke( $post_handler, $post->post_content ),
+				'source_url'    => home_url(),
 			);
 			$export_data[] = $post_data;
 		}
@@ -412,6 +430,7 @@ class PEIWM_Scheduled_Exports {
 				'meta'          => $get_meta->invoke( $page_handler, $page->ID ),
 				'featured_image' => $get_featured->invoke( $page_handler, $page->ID ),
 				'content_images' => $get_content_images->invoke( $page_handler, $page->post_content ),
+				'source_url'    => home_url(),
 			);
 			$export_data[] = $page_data;
 		}
@@ -635,6 +654,200 @@ class PEIWM_Scheduled_Exports {
 		$filepath = $dir . '/' . $filename . '.json';
 		file_put_contents( $filepath, wp_json_encode( $export_data, JSON_PRETTY_PRINT ) );
 		
+		return $filepath;
+	}
+
+	/**
+	 * Export all CPTs (Custom Post Types) with ACF fields for scheduled backup.
+	 * Password hashes are intentionally excluded from scheduled exports.
+	 *
+	 * @param string $dir      Backup directory path.
+	 * @param string $filename Base filename (no extension).
+	 * @return string|false    File path on success, false on failure.
+	 */
+	private function export_cpt_scheduled( $dir, $filename ) {
+		if ( ! class_exists( 'PEIM_CPT_ACF_Exporter' ) ) {
+			return false;
+		}
+
+		$cpt_exporter = PEIM_CPT_ACF_Exporter::get_instance();
+		$is_acf_active = $cpt_exporter->is_acf_active();
+
+		// All non-built-in post types.
+		$post_types = get_post_types( array( '_builtin' => false ), 'names' );
+		if ( empty( $post_types ) ) {
+			return false;
+		}
+
+		$export_data = array();
+
+		foreach ( $post_types as $post_type ) {
+			$posts = get_posts( array(
+				'post_type'      => $post_type,
+				'numberposts'    => -1,
+				'post_status'    => array( 'publish', 'draft', 'private' ),
+				'orderby'        => 'date',
+				'order'          => 'DESC',
+				'no_found_rows'  => true,
+			) );
+
+			foreach ( $posts as $post ) {
+				$post_meta = array();
+				$all_meta  = get_post_meta( $post->ID );
+				foreach ( $all_meta as $key => $values ) {
+					if ( strpos( $key, '_' ) === 0 ) {
+						continue; // skip private/internal keys
+					}
+					$post_meta[ sanitize_key( $key ) ] = array_map( function( $v ) {
+						if ( is_array( $v ) || is_object( $v ) ) {
+							return serialize( $v );
+						}
+						return wp_kses_post( $v );
+					}, $values );
+				}
+
+				$entry = array(
+					'ID'           => absint( $post->ID ),
+					'post_title'   => sanitize_text_field( $post->post_title ),
+					'post_content' => wp_kses_post( $post->post_content ),
+					'post_excerpt' => sanitize_textarea_field( $post->post_excerpt ),
+					'post_status'  => sanitize_key( $post->post_status ),
+					'post_type'    => sanitize_key( $post->post_type ),
+					'post_name'    => sanitize_title( $post->post_name ),
+					'post_date'    => sanitize_text_field( $post->post_date ),
+					'menu_order'   => absint( $post->menu_order ),
+					'post_meta'    => $post_meta,
+					'source_url'   => home_url(),
+				);
+
+				// Attach ACF fields if ACF is active.
+				if ( $is_acf_active ) {
+					$acf_raw = get_fields( $post->ID );
+					if ( ! empty( $acf_raw ) && is_array( $acf_raw ) ) {
+						$entry['acf_fields'] = $cpt_exporter->flatten_acf_fields_public( $post->ID, $acf_raw );
+					}
+				}
+
+				$export_data[] = $entry;
+			}
+		}
+
+		wp_reset_postdata();
+
+		if ( empty( $export_data ) ) {
+			return false;
+		}
+
+		$filepath = $dir . '/' . $filename . '.json';
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		file_put_contents( $filepath, wp_json_encode( $export_data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
+
+		return $filepath;
+	}
+
+	/**
+	 * Export users for scheduled backup.
+	 * Includes: basic info, user meta & capabilities, ACF user fields, WooCommerce data.
+	 * Intentionally excludes password hashes — scheduled exports are backups, not migrations.
+	 *
+	 * @param string $dir      Backup directory path.
+	 * @param string $filename Base filename (no extension).
+	 * @return string|false    File path on success, false on failure.
+	 */
+	private function export_users_scheduled( $dir, $filename ) {
+		$users = get_users( array( 'number' => -1 ) );
+
+		if ( empty( $users ) ) {
+			return false;
+		}
+
+		// Meta keys blocked for security (passwords, sessions, tokens).
+		$blocked_meta_keys = array(
+			'session_tokens', 'user_pass', '_application_passwords',
+			'auth_cookie', 'secure_auth_cookie', 'logged_in_cookie',
+		);
+
+		// WooCommerce-specific meta keys.
+		$woo_meta_keys = array(
+			'billing_first_name', 'billing_last_name', 'billing_company',
+			'billing_address_1', 'billing_address_2', 'billing_city',
+			'billing_state', 'billing_postcode', 'billing_country',
+			'billing_phone', 'billing_email',
+			'shipping_first_name', 'shipping_last_name', 'shipping_company',
+			'shipping_address_1', 'shipping_address_2', 'shipping_city',
+			'shipping_state', 'shipping_postcode', 'shipping_country',
+			'wc_last_active', 'woocommerce_checkout_profile_id',
+		);
+
+		$is_acf_active = function_exists( 'get_fields' );
+		$is_woo_active = class_exists( 'WooCommerce' );
+
+		$export = array();
+
+		foreach ( $users as $user ) {
+			// ── Basic info (always included) ──────────────────────────
+			$user_data = array(
+				'ID'              => absint( $user->ID ),
+				'user_login'      => sanitize_user( $user->user_login ),
+				'user_email'      => sanitize_email( $user->user_email ),
+				'user_nicename'   => sanitize_title( $user->user_nicename ),
+				'user_url'        => esc_url_raw( $user->user_url ),
+				'user_registered' => sanitize_text_field( $user->user_registered ),
+				'user_status'     => absint( $user->user_status ),
+				'display_name'    => sanitize_text_field( $user->display_name ),
+				'roles'           => array_map( 'sanitize_text_field', (array) $user->roles ),
+				'locale'          => sanitize_text_field( get_user_locale( $user->ID ) ),
+				'first_name'      => sanitize_text_field( get_user_meta( $user->ID, 'first_name', true ) ),
+				'last_name'       => sanitize_text_field( get_user_meta( $user->ID, 'last_name', true ) ),
+				'description'     => sanitize_textarea_field( get_user_meta( $user->ID, 'description', true ) ),
+				// NOTE: user_pass_hash intentionally omitted from scheduled exports.
+			);
+
+			// ── User meta & capabilities ─────────────────────────────
+			$all_meta  = get_user_meta( $user->ID );
+			$safe_meta = array();
+			foreach ( $all_meta as $key => $values ) {
+				if ( in_array( $key, $blocked_meta_keys, true ) ) {
+					continue;
+				}
+				if ( in_array( $key, $woo_meta_keys, true ) ) {
+					continue; // handled separately below
+				}
+				// Skip raw ACF field storage keys to avoid duplication with the acf block.
+				if ( $is_acf_active && strpos( $key, 'field_' ) === 0 ) {
+					continue;
+				}
+				$safe_meta[ sanitize_key( $key ) ] = array_map( 'maybe_unserialize', $values );
+			}
+			$user_data['meta'] = $safe_meta;
+
+			// ── WooCommerce data ─────────────────────────────────────
+			if ( $is_woo_active ) {
+				$woo_data = array();
+				foreach ( $woo_meta_keys as $woo_key ) {
+					$val = get_user_meta( $user->ID, $woo_key, true );
+					if ( '' !== $val ) {
+						$woo_data[ sanitize_key( $woo_key ) ] = sanitize_text_field( $val );
+					}
+				}
+				$user_data['woocommerce'] = $woo_data;
+			}
+
+			// ── ACF user fields ──────────────────────────────────────
+			if ( $is_acf_active ) {
+				$acf_fields = get_fields( 'user_' . $user->ID );
+				if ( ! empty( $acf_fields ) && is_array( $acf_fields ) ) {
+					$user_data['acf'] = $acf_fields;
+				}
+			}
+
+			$export[] = $user_data;
+		}
+
+		$filepath = $dir . '/' . $filename . '.json';
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		file_put_contents( $filepath, wp_json_encode( $export, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
+
 		return $filepath;
 	}
 
@@ -1014,6 +1227,20 @@ class PEIWM_Scheduled_Exports {
 							<label class="peiwm-checkbox-label">
 								<input type="checkbox" name="peiwm_scheduled_exports[export_types][]" value="settings" <?php checked( in_array( 'settings', $settings['export_types'] ) ); ?> <?php echo ! $is_pro_active ? 'disabled' : ''; ?>>
 								<span class="peiwm-checkbox-text"><?php echo esc_html__( 'Settings', 'post-export-import-with-media' ); ?></span>
+							</label>
+							<label class="peiwm-checkbox-label">
+								<input type="checkbox" name="peiwm_scheduled_exports[export_types][]" value="cpt" <?php checked( in_array( 'cpt', $settings['export_types'] ) ); ?> <?php echo ! $is_pro_active ? 'disabled' : ''; ?>>
+								<span class="peiwm-checkbox-text">
+									<?php echo esc_html__( 'CPT &amp; ACF', 'post-export-import-with-media' ); ?>
+									<!-- <small style="display:block;color:#6b7280;font-size:0.78rem;margin-top:1px;"><?php echo esc_html__( 'All custom post types + ACF field values', 'post-export-import-with-media' ); ?></small> -->
+								</span>
+							</label>
+							<label class="peiwm-checkbox-label">
+								<input type="checkbox" name="peiwm_scheduled_exports[export_types][]" value="users" <?php checked( in_array( 'users', $settings['export_types'] ) ); ?> <?php echo ! $is_pro_active ? 'disabled' : ''; ?>>
+								<span class="peiwm-checkbox-text">
+									<?php echo esc_html__( 'Users', 'post-export-import-with-media' ); ?>
+									<!-- <small style="display:block;color:#6b7280;font-size:0.78rem;margin-top:1px;"><?php echo esc_html__( 'Basic info, meta, capabilities, ACF user fields, WooCommerce data. Passwords excluded.', 'post-export-import-with-media' ); ?></small> -->
+								</span>
 							</label>
 						</div>
 					</div>
