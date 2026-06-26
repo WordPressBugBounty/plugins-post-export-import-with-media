@@ -63,17 +63,28 @@ class PEIWM_Main {
 	 * @return object|null Freemius SDK object or null.
 	 */
 	public function is_pro_active() {
-		$is_pro_installed = class_exists('PEIWM_Pro_Main') && $this->check_pro_plugin_exists();
-		
-		// Get the correct Freemius instance based on which plugin is handling it
+		$is_pro_installed = class_exists( 'PEIWM_Pro_Main' )
+			|| file_exists( WP_PLUGIN_DIR . '/post-export-import-with-media-pro/post-export-import-with-media-pro.php' );
+
+		if ( ! $is_pro_installed ) {
+			return false;
+		}
+
+		// Ensure is_plugin_active() is available
+		if ( ! function_exists( 'is_plugin_active' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+
+		if ( ! is_plugin_active( 'post-export-import-with-media-pro/post-export-import-with-media-pro.php' ) ) {
+			return false;
+		}
+
 		$freemius_instance = peiwm_get_freemius_instance();
-		
-		// If no Freemius instance available, return false
 		if ( ! $freemius_instance ) {
 			return false;
 		}
-		
-		return $freemius_instance->can_use_premium_code__premium_only() && $is_pro_installed;
+
+		return $freemius_instance->can_use_premium_code__premium_only();
 	}
 
 	/**
@@ -174,14 +185,50 @@ class PEIWM_Main {
 	 * Load plugin dependencies
 	 */
 	private function load_dependencies() {
-		// Load core classes
+		
+		$pro_path = WP_PLUGIN_DIR . '/post-export-import-with-media-pro/includes/';
+		$has_pro  = is_dir( $pro_path );
+
+		// Core classes always loaded
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-email-template.php';
-		require_once PEIWM_PLUGIN_PATH . 'includes/class-email-settings-handler.php';
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-admin-menu.php';
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-ajax-handler.php';
+
+		// Post handler — load free always as safety net; pro loaded on top if present
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-post-handler.php';
+		if ( $has_pro && file_exists( $pro_path . 'class-post-handler-pro.php' ) ) {
+			require_once $pro_path . 'class-post-handler-pro.php';
+		}
+
+		// Page handler
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-page-handler.php';
+		if ( $has_pro && file_exists( $pro_path . 'class-page-handler-pro.php' ) ) {
+			require_once $pro_path . 'class-page-handler-pro.php';
+		}
+
+		// Media handler
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-media-handler.php';
+		if ( $has_pro && file_exists( $pro_path . 'class-media-handler-pro.php' ) ) {
+			require_once $pro_path . 'class-media-handler-pro.php';
+		}
+
+		// User handler
+		require_once PEIWM_PLUGIN_PATH . 'includes/class-user-handler.php';
+		if ( $has_pro && file_exists( $pro_path . 'class-user-handler-pro.php' ) ) {
+			require_once $pro_path . 'class-user-handler-pro.php';
+		}
+
+		// Email settings handler — pro only (free stub was removed)
+		if ( $has_pro && file_exists( $pro_path . 'class-email-settings-handler-pro.php' ) ) {
+			require_once $pro_path . 'class-email-settings-handler-pro.php';
+		}
+
+		// CPT & ACF exporter — pro only (free stub was removed)
+		if ( $has_pro && file_exists( $pro_path . 'class-cpt-acf-exporter-pro.php' ) ) {
+			require_once $pro_path . 'class-cpt-acf-exporter-pro.php';
+		}
+
+		// Always needed
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-settings-handler.php';
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-themes-plugins-handler.php';
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-widgets-menus-handler.php';
@@ -189,10 +236,14 @@ class PEIWM_Main {
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-batch-settings.php';
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-batch-processor.php';
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-heartbeat-handler.php';
-		require_once PEIWM_PLUGIN_PATH . 'includes/class-scheduled-exports.php';
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-generic-recommendations.php';
-		require_once PEIWM_PLUGIN_PATH . 'includes/class-cpt-acf-exporter.php';
-		require_once PEIWM_PLUGIN_PATH . 'includes/class-user-handler.php';
+
+		// Scheduled exports — free always loads (owns menu + locked UI)
+		require_once PEIWM_PLUGIN_PATH . 'includes/class-scheduled-exports.php';
+		// Pro scheduled exports loaded here too so class is available when init_components runs
+		if ( $has_pro && file_exists( $pro_path . 'class-scheduled-exports.php' ) ) {
+			require_once $pro_path . 'class-scheduled-exports.php';
+		}
 	}
 
 	/**
@@ -219,6 +270,8 @@ class PEIWM_Main {
 	 * Initialize plugin components
 	 */
 	public function init_components() {
+		$is_pro = $this->is_pro_active();
+
 		// Initialize admin menu
 		PEIWM_Admin_Menu::get_instance();
 		
@@ -226,19 +279,34 @@ class PEIWM_Main {
 		PEIWM_Ajax_Handler::get_instance();
 		
 		// Initialize post handler
-		PEIWM_Post_Handler::get_instance();
+		if ( $is_pro && class_exists( 'PEIWM_Post_Handler_Pro' ) ) {
+			PEIWM_Post_Handler_Pro::get_instance();
+		}else {
+			PEIWM_Post_Handler::get_instance();
+		}
 		
 		// Initialize page handler
-		PEIWM_Page_Handler::get_instance();
+		if ( $is_pro && class_exists( 'PEIWM_Page_Handler_Pro' ) ) {
+			PEIWM_Page_Handler_Pro::get_instance();
+		}else {
+			PEIWM_Page_Handler::get_instance();
+		}
 		
 		// Initialize media handler
-		PEIWM_Media_Handler::get_instance();
+		if ( $is_pro && class_exists( 'PEIWM_Media_Handler_Pro' ) ) {
+			PEIWM_Media_Handler_Pro::get_instance();
+		}else {
+			PEIWM_Media_Handler::get_instance();
+		}
+		
 		
 		// Initialize settings handler
 		PEIWM_Settings_Handler::get_instance();
-		
-		// Initialize email settings handler
-		PEIWM_Email_Settings_Handler::get_instance();
+
+		// Initialize email settings handler — PRO only
+		if ( $is_pro && class_exists( 'PEIWM_Email_Settings_Handler_Pro' ) ) {
+			PEIWM_Email_Settings_Handler_Pro::get_instance();
+		}
 		
 		// Initialize themes & plugins handler
 		PEIWM_Themes_Plugins_Handler::get_instance();
@@ -248,9 +316,13 @@ class PEIWM_Main {
 		
 		// Initialize admin download buttons
 		PEIWM_Admin_Download_Buttons::get_instance();
-		
-		// Initialize batch settings
+
+		// Initialize scheduled exports — free class always runs (menu + locked UI).
+		// PRO class also initializes on top when active (adds cron/AJAX logic).
 		PEIWM_Scheduled_Exports::get_instance();
+		if ( $is_pro && class_exists( 'PEIWM_Scheduled_Exports_Pro' ) ) {
+			PEIWM_Scheduled_Exports_Pro::get_instance();
+		}
 		
 		// Initialize batch settings
 		PEIWM_Batch_Settings::get_instance();
@@ -261,13 +333,17 @@ class PEIWM_Main {
 		// Initialize heartbeat handler
 		PEIWM_Heartbeat_Handler::get_instance();
 
-		// Initialize CPT & ACF Exporter
-		if ( $this->is_pro_active() ) {
-			PEIM_CPT_ACF_Exporter::get_instance()->init();
+		// Initialize CPT & ACF Exporter — PRO only
+		if ( $is_pro && class_exists( 'PEIM_CPT_ACF_Exporter_Pro' ) ) {
+			PEIM_CPT_ACF_Exporter_Pro::get_instance()->init();
 		}
-
+		
 		// Initialize user handler
-		PEIWM_User_Handler::get_instance();
+		if ( $is_pro && class_exists( 'PEIWM_User_Handler_Pro' ) ) {
+			PEIWM_User_Handler_Pro::get_instance();
+		}else {
+			PEIWM_User_Handler::get_instance();
+		}
 		
 		// Initialize recommendations
 		if ( class_exists( 'Recommendations' ) ) {
