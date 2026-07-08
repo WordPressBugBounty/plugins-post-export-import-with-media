@@ -192,9 +192,13 @@ class PEIWM_Main {
 		// Core classes always loaded
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-email-template.php';
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-admin-menu.php';
-		require_once PEIWM_PLUGIN_PATH . 'includes/class-ajax-handler.php';
 
-		// Post handler — load free always as safety net; pro loaded on top if present
+		require_once PEIWM_PLUGIN_PATH . 'includes/class-ajax-handler.php';
+		if ( $has_pro && file_exists( $pro_path . 'class-ajax-handler-pro.php' ) ) {
+			require_once $pro_path . 'class-ajax-handler-pro.php';
+		}
+
+		// Post handler 
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-post-handler.php';
 		if ( $has_pro && file_exists( $pro_path . 'class-post-handler-pro.php' ) ) {
 			require_once $pro_path . 'class-post-handler-pro.php';
@@ -218,12 +222,12 @@ class PEIWM_Main {
 			require_once $pro_path . 'class-user-handler-pro.php';
 		}
 
-		// Email settings handler — pro only (free stub was removed)
+		// Email settings handler
 		if ( $has_pro && file_exists( $pro_path . 'class-email-settings-handler-pro.php' ) ) {
 			require_once $pro_path . 'class-email-settings-handler-pro.php';
 		}
 
-		// CPT & ACF exporter — pro only (free stub was removed)
+		// CPT & ACF exporter
 		if ( $has_pro && file_exists( $pro_path . 'class-cpt-acf-exporter-pro.php' ) ) {
 			require_once $pro_path . 'class-cpt-acf-exporter-pro.php';
 		}
@@ -233,14 +237,21 @@ class PEIWM_Main {
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-themes-plugins-handler.php';
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-widgets-menus-handler.php';
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-admin-download-buttons.php';
+
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-batch-settings.php';
+		if ( $has_pro && file_exists( $pro_path . 'class-batch-settings-pro.php' ) ) {
+			require_once $pro_path . 'class-batch-settings-pro.php';
+		}
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-batch-processor.php';
+		if ( $has_pro && file_exists( $pro_path . 'class-batch-processor-pro.php' ) ) {
+			require_once $pro_path . 'class-batch-processor-pro.php';
+		}
+
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-heartbeat-handler.php';
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-generic-recommendations.php';
 
-		// Scheduled exports — free always loads (owns menu + locked UI)
+		// Scheduled exports
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-scheduled-exports.php';
-		// Pro scheduled exports loaded here too so class is available when init_components runs
 		if ( $has_pro && file_exists( $pro_path . 'class-scheduled-exports.php' ) ) {
 			require_once $pro_path . 'class-scheduled-exports.php';
 		}
@@ -276,7 +287,11 @@ class PEIWM_Main {
 		PEIWM_Admin_Menu::get_instance();
 		
 		// Initialize AJAX handler
-		PEIWM_Ajax_Handler::get_instance();
+		if ( $is_pro && class_exists( 'PEIWM_Ajax_Handler_Pro' ) ) {
+			PEIWM_Ajax_Handler_Pro::get_instance();
+		}else {
+			PEIWM_Ajax_Handler::get_instance();
+		}
 		
 		// Initialize post handler
 		if ( $is_pro && class_exists( 'PEIWM_Post_Handler_Pro' ) ) {
@@ -303,7 +318,7 @@ class PEIWM_Main {
 		// Initialize settings handler
 		PEIWM_Settings_Handler::get_instance();
 
-		// Initialize email settings handler — PRO only
+		// Initialize email settings handler
 		if ( $is_pro && class_exists( 'PEIWM_Email_Settings_Handler_Pro' ) ) {
 			PEIWM_Email_Settings_Handler_Pro::get_instance();
 		}
@@ -317,23 +332,30 @@ class PEIWM_Main {
 		// Initialize admin download buttons
 		PEIWM_Admin_Download_Buttons::get_instance();
 
-		// Initialize scheduled exports — free class always runs (menu + locked UI).
-		// PRO class also initializes on top when active (adds cron/AJAX logic).
+		// Initialize scheduled exports
 		PEIWM_Scheduled_Exports::get_instance();
 		if ( $is_pro && class_exists( 'PEIWM_Scheduled_Exports_Pro' ) ) {
 			PEIWM_Scheduled_Exports_Pro::get_instance();
 		}
 		
 		// Initialize batch settings
-		PEIWM_Batch_Settings::get_instance();
+		if ( $is_pro && class_exists( 'PEIWM_Batch_Settings_Pro' ) ) {
+			PEIWM_Batch_Settings_Pro::get_instance();
+		}else {
+			PEIWM_Batch_Settings::get_instance();
+		}
 		
 		// Initialize batch processor
-		PEIWM_Batch_Processor::get_instance();
+		if ( $is_pro && class_exists( 'PEIWM_Batch_Processor_Pro' ) ) {
+			PEIWM_Batch_Processor_Pro::get_instance();
+		}else {
+			PEIWM_Batch_Processor::get_instance();
+		}
 		
 		// Initialize heartbeat handler
 		PEIWM_Heartbeat_Handler::get_instance();
 
-		// Initialize CPT & ACF Exporter — PRO only
+		// Initialize CPT & ACF Exporter
 		if ( $is_pro && class_exists( 'PEIM_CPT_ACF_Exporter_Pro' ) ) {
 			PEIM_CPT_ACF_Exporter_Pro::get_instance()->init();
 		}
@@ -384,7 +406,15 @@ class PEIWM_Main {
 	 * Register plugin settings
 	 */
 	public function register_settings() {
-		register_setting( 'peiwm_admin_download_buttons', 'peiwm_enable_admin_download_buttons' );
+		register_setting(
+			'peiwm_admin_download_buttons',
+			'peiwm_enable_admin_download_buttons',
+			array(
+				'type'              => 'boolean',
+				'sanitize_callback' => 'rest_sanitize_boolean',
+				'default'           => false,
+			)
+		);
 
 		register_setting(
 			'peiwm_settings',
@@ -464,5 +494,80 @@ class PEIWM_Main {
 				}
 			}
 		}
+
+		$this->cleanup_orphaned_media_import_dirs( $upload_dir['basedir'] );
+	}
+
+	/**
+	 * Sweep orphaned per-batch media-import temp directories
+	 * (wp-content/uploads/temp_<uuid>/, created by PEIWM_Media_Handler).
+	 *
+	 * These directories are normally removed by a client-side AJAX call
+	 * (peiwm_cleanup_media_batch) once an import finishes. If the admin
+	 * closes the tab, loses connection, or the import errors out before
+	 * that call fires, the directory — and any extracted file contents —
+	 * can otherwise persist indefinitely inside the (usually web-readable)
+	 * uploads folder. This sweep guarantees they don't outlive ~1 hour
+	 * regardless of what happens in the browser.
+	 *
+	 * @since 1.13.2
+	 * @param string $basedir wp_upload_dir()['basedir'].
+	 */
+	private function cleanup_orphaned_media_import_dirs( $basedir ) {
+		$candidates = glob( $basedir . DIRECTORY_SEPARATOR . 'temp_*', GLOB_ONLYDIR );
+
+		if ( empty( $candidates ) ) {
+			return;
+		}
+
+		$now = time();
+
+		foreach ( $candidates as $dir ) {
+			// Use the directory's own mtime as a "created/last touched" proxy.
+			if ( ( $now - filemtime( $dir ) ) <= 3600 ) { // 1 hour grace period
+				continue;
+			}
+
+			if ( class_exists( 'PEIWM_Media_Handler' ) ) {
+				// Reuse the plugin's own recursive, path-safe deleter.
+				$handler = PEIWM_Media_Handler::get_instance();
+				if ( method_exists( $handler, 'delete_directory_secure_public' ) ) {
+					$handler->delete_directory_secure_public( $dir );
+					continue;
+				}
+			}
+
+			// Fallback: best-effort recursive delete if the handler helper
+			// isn't available for some reason.
+			$this->recursive_delete_fallback( $dir );
+		}
+	}
+
+	/**
+	 * Minimal fallback recursive delete, used only if
+	 * PEIWM_Media_Handler::delete_directory_secure_public() is unavailable.
+	 *
+	 * @since 1.13.2
+	 * @param string $dir Absolute directory path to remove.
+	 */
+	private function recursive_delete_fallback( $dir ) {
+		if ( ! is_dir( $dir ) ) {
+			return;
+		}
+
+		$items = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator( $dir, RecursiveDirectoryIterator::SKIP_DOTS ),
+			RecursiveIteratorIterator::CHILD_FIRST
+		);
+
+		foreach ( $items as $item ) {
+			if ( $item->isDir() ) {
+				@rmdir( $item->getRealPath() ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			} else {
+				wp_delete_file( $item->getRealPath() );
+			}
+		}
+
+		@rmdir( $dir ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 	}
 }
