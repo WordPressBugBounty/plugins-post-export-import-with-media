@@ -967,7 +967,7 @@ class PEIWM_Admin_Menu {
 							</div>
 
 							<!-- Media Match Mode Setting -->
-							<div class="peiwm-inline-row post-media-match<?php echo ! $is_pro_exp ? 'peiwm-pro-inline-row is-locked peiwm-locked-section peiwm-open-premium-modal' : ''; ?>" style="margin-top: 1rem;">
+							<div class="peiwm-inline-row post-media-match <?php echo ! $is_pro_exp ? 'peiwm-pro-inline-row is-locked peiwm-locked-section peiwm-open-premium-modal' : ''; ?>" style="margin-top: 1rem;">
 								<b style="font-size:12.5px;display:block;margin-bottom:8px; color:#1e1e1e;">
 									<?php echo esc_html__( 'Image Matching Strategy', 'post-export-import-with-media' ); ?>
 								</b>
@@ -1004,7 +1004,7 @@ class PEIWM_Admin_Menu {
 									</label>
 								</div>
 								<?php if ( ! $is_pro ) : ?>
-									<a class="peiwm-pro-upgrade-link peiwm-open-premium-modal" href="https://wpazleen.com/post-export-import-with-media-pricing/" target="_blank"><?php echo esc_html__( 'Upgrade', 'post-export-import-with-media' ); ?> ↗</a>
+									<!-- <a class="peiwm-pro-upgrade-link peiwm-open-premium-modal" href="https://wpazleen.com/post-export-import-with-media-pricing/" target="_blank"><?php echo esc_html__( 'Upgrade', 'post-export-import-with-media' ); ?> ↗</a> -->
 								<?php endif; ?>
 							</div>
 
@@ -1686,7 +1686,7 @@ class PEIWM_Admin_Menu {
 							</label>
 
 							<!-- Media Match Mode Setting (Pages) -->
-							<div class="peiwm-inline-row page-media-match<?php echo ! $is_pro_pages ? 'peiwm-pro-inline-row is-locked peiwm-locked-section peiwm-open-premium-modal' : ''; ?>" style="margin-top: 1rem;">
+							<div class="peiwm-inline-row page-media-match <?php echo ! $is_pro_pages ? 'peiwm-pro-inline-row is-locked peiwm-locked-section peiwm-open-premium-modal' : ''; ?>" style="margin-top: 1rem;">
 								<b style="font-size:12.5px;display:block;margin-bottom:8px; color:#1e1e1e;">
 									<?php echo esc_html__( 'Image Matching Strategy', 'post-export-import-with-media' ); ?>
 								</b>
@@ -1741,7 +1741,7 @@ class PEIWM_Admin_Menu {
 									</label>
 								</div>
 								<?php if ( ! $is_pro_pages ) : ?>
-									<a class="peiwm-pro-upgrade-link peiwm-open-premium-modal"  href="https://wpazleen.com/post-export-import-with-media-pricing/" target="_blank"><?php echo esc_html__( 'Upgrade', 'post-export-import-with-media' ); ?> ↗</a>
+									<!-- <a class="peiwm-pro-upgrade-link peiwm-open-premium-modal"  href="https://wpazleen.com/post-export-import-with-media-pricing/" target="_blank"><?php echo esc_html__( 'Upgrade', 'post-export-import-with-media' ); ?> ↗</a> -->
 								<?php endif; ?>
 							</div>
 							
