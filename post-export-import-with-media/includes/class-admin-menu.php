@@ -684,7 +684,7 @@ class PEIWM_Admin_Menu {
 
 						<?php
 						$main_instance_exp = PEIWM_Main::get_instance();
-						$is_pro_exp        = $main_instance_exp->is_pro_active();
+						$is_pro_exp        = $main_instance_exp->is_pro_active(); // Just an UI lock, its not a functional lock. 
 						$exp_locked        = ! $is_pro_exp ? ' peiwm-locked-section' : '';
 						?>
 
@@ -705,7 +705,6 @@ class PEIWM_Admin_Menu {
 							
 							<!-- PRO Row: Export individually -->
 							<div class="peiwm-inline-row <?php echo ! $is_pro_exp ? 'peiwm-pro-inline-row is-locked peiwm-locked-section peiwm-open-premium-modal' : ''; ?>">
-							<!-- <div class="peiwm-pro-inline-row peiwm-locked-section peiwm-open-premium-modal"> -->
 								<label class="peiwm-checkbox-label">
 									<input type="checkbox" id="peiwm-export-posts-selective" <?php echo ! $is_pro_exp ? 'disabled' : ''; ?>>
 									<span class="peiwm-checkbox-text">
@@ -900,7 +899,7 @@ class PEIWM_Admin_Menu {
 
 						<?php
 						$main_instance = PEIWM_Main::get_instance();
-						$is_pro = $main_instance->is_pro_active();
+						$is_pro = $main_instance->is_pro_active(); // Just an UI lock, its not a functional lock. 
 						?>
 
 						<!-- Advanced Options Toggle Button -->
@@ -1229,7 +1228,7 @@ class PEIWM_Admin_Menu {
 
 						<?php
 						$main_instance_media = PEIWM_Main::get_instance();
-						$is_pro_media        = $main_instance_media->is_pro_active();
+						$is_pro_media        = $main_instance_media->is_pro_active(); // Just an UI lock, its not a functional lock. 
 						?>
 
 						<!-- Advanced Options Toggle for Media -->
@@ -1481,7 +1480,7 @@ class PEIWM_Admin_Menu {
 
 						<?php
 						$main_instance_pexp = PEIWM_Main::get_instance();
-						$is_pro_exp        = $main_instance_pexp->is_pro_active();
+						$is_pro_exp        = $main_instance_pexp->is_pro_active(); // Just an UI lock, its not a functional lock. 
 						?>
 
 						<!-- Advanced Options Toggle Button -->
@@ -1647,7 +1646,7 @@ class PEIWM_Admin_Menu {
 
 						<?php
 						$main_instance_pages = PEIWM_Main::get_instance();
-						$is_pro_pages = $main_instance_pages->is_pro_active();
+						$is_pro_pages = $main_instance_pages->is_pro_active(); // Just an UI lock, its not a functional lock. 
 						?>
 
 						<!-- Advanced Options Toggle Button -->
@@ -2448,7 +2447,7 @@ class PEIWM_Admin_Menu {
 							<?php
 							// Declare once — shared by all locked sections in this form
 							$main_instance = PEIWM_Main::get_instance();
-							$is_pro        = $main_instance->is_pro_active();
+							$is_pro        = $main_instance->is_pro_active(); // Just an UI lock, its not a functional lock. 
 							$locked        = ! $is_pro ? ' peiwm-locked-section' : '';
 							?>
 
@@ -2562,7 +2561,7 @@ class PEIWM_Admin_Menu {
 
 					<!-- Category tabs -->
 					<div class="peiwm-faq-tabs" role="tablist">
-						<button class="peiwm-faq-tab active" data-cat="all"  role="tab" aria-selected="true">
+						<button class="peiwm-faq-tab" data-cat="all"  role="tab" aria-selected="false">
 							<?php esc_html_e( 'All', 'post-export-import-with-media' ); ?>
 						</button>
 						<button class="peiwm-faq-tab" data-cat="posts"  role="tab" aria-selected="false">
@@ -2589,7 +2588,7 @@ class PEIWM_Admin_Menu {
 						<button class="peiwm-faq-tab" data-cat="batch"  role="tab" aria-selected="false">
 							<?php esc_html_e( 'Batch & Scheduled', 'post-export-import-with-media' ); ?>
 						</button>
-						<button class="peiwm-faq-tab" data-cat="system" role="tab" aria-selected="false">
+						<button class="peiwm-faq-tab active" data-cat="system" role="tab" aria-selected="true">
 							<?php esc_html_e( 'System & Email', 'post-export-import-with-media' ); ?>
 						</button>
 					</div>
@@ -2746,7 +2745,7 @@ class PEIWM_Admin_Menu {
 					</div>
 					
 					<?php
-					$ue_is_pro   = PEIWM_Main::get_instance()->is_pro_active();
+					$ue_is_pro   = PEIWM_Main::get_instance()->is_pro_active(); // Just an UI lock, its not a functional lock. 
 					$ue_woo      = class_exists( 'WooCommerce' );
 					$ue_acf      = function_exists( 'get_fields' );
 					?>
@@ -2932,7 +2931,7 @@ class PEIWM_Admin_Menu {
 					</div>
 
 					<?php
-					$users_is_pro = PEIWM_Main::get_instance()->is_pro_active();
+					$users_is_pro = PEIWM_Main::get_instance()->is_pro_active(); // Just an UI lock, its not a functional lock. 
 					?>
 
 					<div class="peiwm-import-options" style="margin-top: 1rem;">
@@ -3083,7 +3082,7 @@ class PEIWM_Admin_Menu {
 			wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'post-export-import-with-media' ) );
 		}
 
-		$is_pro = PEIWM_Main::get_instance()->is_pro_active();
+		$is_pro = PEIWM_Main::get_instance()->is_pro_active(); // if the pro version is active, load the pro email template page, otherwise load the free version template page.
 
 		if ( $is_pro && defined( 'PEIWM_PRO_PLUGIN_PATH' ) && file_exists( PEIWM_PRO_PLUGIN_PATH . 'includes/email-template-page-pro.php' ) ) {
 			require_once PEIWM_PRO_PLUGIN_PATH . 'includes/email-template-page-pro.php';
@@ -3339,14 +3338,14 @@ class PEIWM_Admin_Menu {
 	}
 	
 	/**
-	 * CPT & ACF page — Pro users see the full export/import UI, Free users see it with Pro overlay
+	 * CPT & ACF page — Pro users see the full export/import UI, Free users see it with Pro overlay, Its not restricted, just a UI lock.
 	 */
 	public function cpt_acf_page() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die();
 		}
 
-		$is_pro = PEIWM_Main::get_instance()->is_pro_active();
+		$is_pro = PEIWM_Main::get_instance()->is_pro_active(); // Just an UI lock, its not a functional lock. 
 		$locked_class = ! $is_pro ? ' peiwm-locked-section' : '';
 		?>
 		<div class="wrap peiwm-admin">

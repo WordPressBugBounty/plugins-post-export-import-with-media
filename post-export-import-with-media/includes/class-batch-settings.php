@@ -359,7 +359,7 @@ class PEIWM_Batch_Settings {
 
 						<?php
 							$main_instance = PEIWM_Main::get_instance();
-							$is_pro_active = $main_instance->is_pro_active();
+							$is_pro_active = $main_instance->is_pro_active(); // Just an UI lock, its not a functional lock. 
 							$locked_class = ! $is_pro_active ? ' peiwm-locked-section-2' : '';
 						?>
 
@@ -391,7 +391,7 @@ class PEIWM_Batch_Settings {
 				<!-- Batch Configuration (shown only when enabled) -->
 				<?php
 				$main_instance = PEIWM_Main::get_instance();
-				$is_pro_active = $main_instance->is_pro_active();
+				$is_pro_active = $main_instance->is_pro_active(); // Just an UI lock, its not a functional lock. 
 				$locked_class = ! $is_pro_active ? ' peiwm-locked-section' : '';
 				?>
 				<div id="peiwm-batch-config" class="<?php echo esc_attr( $locked_class ); ?>" style="<?php echo $settings['enable_batch_processing'] ? '' : 'display: none;'; ?>; position: relative;">
