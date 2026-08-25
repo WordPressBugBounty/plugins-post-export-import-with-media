@@ -43,6 +43,9 @@ class PEIWM_Admin_Menu {
 		add_action( 'admin_menu', array( $this, 'add_recommendations_menu' ), 50 );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_scripts' ) );
 		add_action( 'current_screen', array( $this, 'protect_plugin_pages' ) );
+		add_action( 'admin_init', array( $this, 'fix_global_admin_title' ) );
+		add_action( 'admin_head', array( $this, 'fix_global_admin_title' ), 1 );
+		add_filter( 'admin_title', array( $this, 'filter_admin_title' ), 1, 2 );
 	}
 
 	/**
@@ -105,6 +108,33 @@ class PEIWM_Admin_Menu {
 	}
 
 	/**
+	 * Fix global $title in admin_head & admin_init to prevent strip_tags(null) deprecation warnings
+	 */
+	public function fix_global_admin_title() {
+		global $title;
+		$page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
+		if ( 'peiwm-media-audit-review' === $page ) {
+			$title = __( 'Review Unused Media', 'post-export-import-with-media' );
+		} elseif ( 'peiwm-media-audit' === $page ) {
+			$title = __( 'Media Health & Audit', 'post-export-import-with-media' );
+		} elseif ( strpos( $page, 'peiwm' ) !== false && ( empty( $title ) || ! is_string( $title ) ) ) {
+			$title = __( 'Post Export Import with Media', 'post-export-import-with-media' );
+		}
+	}
+
+	/**
+	 * Filter admin page title
+	 */
+	public function filter_admin_title( $admin_title, $title_param = '' ) {
+		global $title;
+		$page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
+		if ( 'peiwm-media-audit-review' === $page ) {
+			$title = __( 'Review Unused Media', 'post-export-import-with-media' );
+		}
+		return $admin_title;
+	}
+
+	/**
 	 * Monitor and maintain global post state
 	 */
 	public function monitor_global_post() {
@@ -138,16 +168,6 @@ class PEIWM_Admin_Menu {
 			array( $this, 'pages_page' )
 		);
 
-		// Add settings submenu
-		add_submenu_page(
-			'peiwm-secure',
-			esc_html__( 'WordPress Settings', 'post-export-import-with-media' ),
-			esc_html__( 'WordPress Settings', 'post-export-import-with-media' ),
-			'manage_options',
-			'peiwm-settings',
-			array( $this, 'settings_page' )
-		);
-
 		// Add themes & plugins submenu
 		add_submenu_page(
 			'peiwm-secure',
@@ -156,6 +176,37 @@ class PEIWM_Admin_Menu {
 			'manage_options',
 			'peiwm-themes-plugins',
 			array( $this, 'themes_plugins_page' )
+		);
+
+		// Media Health & Audit page
+		add_submenu_page(
+			'peiwm-secure',
+			esc_html__( 'Media Health & Audit', 'post-export-import-with-media' ),
+			esc_html__( 'Media Health & Audit', 'post-export-import-with-media' ),
+			'manage_options',
+			'peiwm-media-audit',
+			array( $this, 'media_audit_page' )
+		);
+
+		// Hidden submenu page for Reviewing Unused Media
+		add_submenu_page(
+			'admin.php',
+			esc_html__( 'Review Unused Media', 'post-export-import-with-media' ),
+			esc_html__( 'Review Unused Media', 'post-export-import-with-media' ),
+			'manage_options',
+			'peiwm-media-audit-review',
+			array( $this, 'media_audit_review_page' )
+		);
+
+		
+		// Media Title & ALT Editor page
+		add_submenu_page(
+			'peiwm-secure',
+			esc_html__( 'Media ALT Editor', 'post-export-import-with-media' ),
+			esc_html__( 'Media ALT Editor', 'post-export-import-with-media' ),
+			'manage_options',
+			'peiwm-media-alt-editor',
+			array( $this, 'media_alt_editor_page' )
 		);
 
 		// CPT & ACF page (Uses overlay lock pattern for Free users)
@@ -178,6 +229,17 @@ class PEIWM_Admin_Menu {
 			array( $this, 'users_page' )
 		);
 
+		// Add settings submenu
+		add_submenu_page(
+			'peiwm-secure',
+			esc_html__( 'WordPress Settings', 'post-export-import-with-media' ),
+			esc_html__( 'WordPress Settings', 'post-export-import-with-media' ),
+			'manage_options',
+			'peiwm-settings',
+			array( $this, 'settings_page' )
+		);
+
+	
 		// Email Template Settings page
 		add_submenu_page(
 			'peiwm-secure',
@@ -213,6 +275,17 @@ class PEIWM_Admin_Menu {
 	 * @param string $hook Current admin page hook
 	 */
 	public function enqueue_admin_scripts( $hook ) {
+		// Enqueue global Premium Upgrade Modal handler on all plugin pages
+		if ( strpos( $hook, 'peiwm' ) !== false || strpos( $hook, 'export-import' ) !== false ) {
+			wp_enqueue_script(
+				'peiwm-premium-modal-handler-js',
+				PEIWM_PLUGIN_URL . 'build/js/premium-modal-handler.min.js',
+				array( 'jquery' ),
+				PEIWM_VERSION,
+				true
+			);
+		}
+
 		// Main plugin page (Posts & Media)
 		if ( 'toplevel_page_peiwm-secure' === $hook ) {
 			wp_enqueue_script(
@@ -231,9 +304,10 @@ class PEIWM_Admin_Menu {
 			);
 
 			wp_localize_script( 'peiwm-admin-js', 'peiwm_ajax', array(
-				'ajax_url' => admin_url( 'admin-ajax.php' ),
-				'nonce'    => wp_create_nonce( 'peiwm_secure_nonce' ),
-				'strings'  => array(
+				'ajax_url'      => admin_url( 'admin-ajax.php' ),
+				'nonce'         => wp_create_nonce( 'peiwm_secure_nonce' ),
+				'is_pro_active' => PEIWM_Main::get_instance()->is_pro_active(),
+				'strings'       => array(
 					'select_file'     => esc_html__( 'Please select a file to import.', 'post-export-import-with-media' ),
 					'file_too_large'  => esc_html__( 'File is too large. Please select a file smaller than 500MB.', 'post-export-import-with-media' ),
 					'select_zip'      => esc_html__( 'Please select a ZIP file.', 'post-export-import-with-media' ),
@@ -253,6 +327,53 @@ class PEIWM_Admin_Menu {
 				array(),
 				PEIWM_VERSION
 			);
+		}
+
+		// Media Health & Audit pages
+		if ( strpos( $hook, 'peiwm-media-audit' ) !== false ) {
+			wp_enqueue_script(
+				'peiwm-admin-js',
+				PEIWM_PLUGIN_URL . 'assets/js/admin.js',
+				array( 'jquery' ),
+				PEIWM_VERSION,
+				true
+			);
+
+			wp_localize_script( 'peiwm-admin-js', 'peiwm_ajax', array(
+				'ajax_url'      => admin_url( 'admin-ajax.php' ),
+				'nonce'         => wp_create_nonce( 'peiwm_secure_nonce' ),
+				'is_pro_active' => PEIWM_Main::get_instance()->is_pro_active(),
+				'strings'       => array(
+					'processing'     => esc_html__( 'Processing...', 'post-export-import-with-media' ),
+					'success'        => esc_html__( 'Success!', 'post-export-import-with-media' ),
+					'error'          => esc_html__( 'Error:', 'post-export-import-with-media' ),
+					'confirm_delete' => esc_html__( 'Are you sure you want to delete all items? This action cannot be undone.', 'post-export-import-with-media' ),
+				),
+			) );
+
+			wp_enqueue_script(
+				'peiwm-media-audit-js',
+				PEIWM_PLUGIN_URL . 'assets/js/media-audit.js',
+				array( 'jquery', 'peiwm-admin-js' ),
+				PEIWM_VERSION,
+				true
+			);
+
+			wp_enqueue_style(
+				'peiwm-admin-css',
+				PEIWM_PLUGIN_URL . 'assets/css/admin.css',
+				array(),
+				PEIWM_VERSION
+			);
+
+			wp_localize_script( 'peiwm-media-audit-js', 'peiwm_media_audit', array(
+				'ajax_url' => admin_url( 'admin-ajax.php' ),
+				'nonce'    => wp_create_nonce( 'peiwm_secure_nonce' ),
+				'strings'  => array(
+					'confirm_trash' => esc_html__( 'Are you sure you want to move this media item to Trash?', 'post-export-import-with-media' ),
+					'error'         => esc_html__( 'Error:', 'post-export-import-with-media' ),
+				),
+			) );
 		}
 
 		// Pages page
@@ -538,6 +659,68 @@ class PEIWM_Admin_Menu {
 				array( 'peiwm-admin-css' ),
 				PEIWM_VERSION
 			);
+		}
+
+		// Media Title & ALT Editor page
+		if ( 'export-import-posts_page_peiwm-media-alt-editor' === $hook ) {
+			wp_enqueue_style(
+				'peiwm-admin-css',
+				PEIWM_PLUGIN_URL . 'build/css/admin.min.css',
+				array(),
+				PEIWM_VERSION
+			);
+
+			wp_enqueue_style(
+				'peiwm-media-alt-editor-css',
+				PEIWM_PLUGIN_URL . 'assets/css/media-alt-editor.css',
+				array( 'peiwm-admin-css' ),
+				PEIWM_VERSION
+			);
+
+			$is_pro = PEIWM_Main::get_instance()->is_pro_active();
+
+			if ( $is_pro ) {
+				$pro_js_url = defined( 'PEIWM_PRO_PLUGIN_URL' ) ? PEIWM_PRO_PLUGIN_URL : PEIWM_PLUGIN_URL . 'PRO/';
+				$pro_ver    = defined( 'PEIWM_PRO_VERSION' ) ? PEIWM_PRO_VERSION : PEIWM_VERSION;
+
+				wp_enqueue_script(
+					'peiwm-media-alt-editor-js',
+					$pro_js_url . 'assets/js/media-alt-editor.js',
+					array( 'jquery' ),
+					$pro_ver,
+					true
+				);
+
+				wp_localize_script( 'peiwm-media-alt-editor-js', 'peiwm_media_editor', array(
+					'ajax_url'   => admin_url( 'admin-ajax.php' ),
+					'nonce'      => wp_create_nonce( 'peiwm_secure_nonce' ),
+					'is_pro'     => '1',
+					'batch_size' => PEIWM_Batch_Settings::get_instance()->get_setting( 'media_editor_page_size' ),
+					'strings'    => array(
+						'loading'         => esc_html__( 'Loading media...', 'post-export-import-with-media' ),
+						'saving'          => esc_html__( 'Saving changes...', 'post-export-import-with-media' ),
+						'saved'           => esc_html__( 'Changes saved successfully!', 'post-export-import-with-media' ),
+						'error'           => esc_html__( 'Error:', 'post-export-import-with-media' ),
+						'no_changes'      => esc_html__( 'No changes to save.', 'post-export-import-with-media' ),
+						'confirm_discard' => esc_html__( 'Discard all unsaved changes?', 'post-export-import-with-media' ),
+						'select_file'     => esc_html__( 'Please select a CSV file.', 'post-export-import-with-media' ),
+						'import_complete' => esc_html__( 'Import complete!', 'post-export-import-with-media' ),
+						'no_media'        => esc_html__( 'No media files found.', 'post-export-import-with-media' ),
+					),
+				) );
+			} else {
+				wp_enqueue_script(
+					'peiwm-media-alt-editor-js',
+					PEIWM_PLUGIN_URL . 'build/js/media-alt-editor.min.js',
+					array( 'jquery' ),
+					PEIWM_VERSION,
+					true
+				);
+
+				wp_localize_script( 'peiwm-media-alt-editor-js', 'peiwm_media_editor', array(
+					'is_pro' => '0',
+				) );
+			}
 		}
 
 		
@@ -3094,7 +3277,7 @@ class PEIWM_Admin_Menu {
 	/**
 	 * Render modal templates
 	 */
-	private function render_modal_templates() {		?>
+	public function render_modal_templates() {		?>
 		<!-- Confirmation Modal -->
 		<div id="peiwm-modal-overlay" class="peiwm-modal-overlay" style="display: none;">
 			<div class="peiwm-modal">
@@ -3604,6 +3787,63 @@ class PEIWM_Admin_Menu {
 		<?php
 	}
 
+	/**
+	 * Render Media Title & ALT Editor page
+	 */
+	public function media_alt_editor_page() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'post-export-import-with-media' ) );
+		}
 
-	
+		$is_pro_active = PEIWM_Main::get_instance()->is_pro_active();
+
+		if ( $is_pro_active ) {
+			if ( ! class_exists( 'PEIWM_Media_Alt_Editor_Page_Pro' ) ) {
+				$pro_path = defined( 'PEIWM_PRO_PLUGIN_PATH' ) ? PEIWM_PRO_PLUGIN_PATH : PEIWM_PLUGIN_PATH . 'PRO/';
+				if ( file_exists( $pro_path . 'includes/class-media-alt-editor-page-pro.php' ) ) {
+					require_once $pro_path . 'includes/class-media-alt-editor-page-pro.php';
+				}
+			}
+			if ( class_exists( 'PEIWM_Media_Alt_Editor_Page_Pro' ) ) {
+				PEIWM_Media_Alt_Editor_Page_Pro::render();
+				$this->render_modal_templates();
+				return;
+			}
+		}
+
+		require_once PEIWM_PLUGIN_PATH . 'includes/class-media-alt-editor-page.php';
+		PEIWM_Media_Alt_Editor_Page::render();
+		$this->render_modal_templates();
+	}
+
+	/**
+	 * Render Media Health & Audit Dashboard page
+	 */
+	public function media_audit_page() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'post-export-import-with-media' ) );
+		}
+
+		require_once PEIWM_PLUGIN_PATH . 'includes/class-media-audit-page.php';
+		$page = new PEIWM_Media_Audit_Page();
+		$page->render();
+		$this->render_modal_templates();
+	}
+
+	/**
+	 * Render Review Unused Media page
+	 */
+	public function media_audit_review_page() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'post-export-import-with-media' ) );
+		}
+
+		$GLOBALS['title'] = __( 'Review Unused Media', 'post-export-import-with-media' );
+
+		require_once PEIWM_PLUGIN_PATH . 'includes/class-media-audit-review-page.php';
+		$page = new PEIWM_Media_Audit_Review_Page();
+		$page->render();
+		$this->render_modal_templates();
+	}
+
 }
