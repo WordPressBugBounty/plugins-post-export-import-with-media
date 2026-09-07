@@ -168,16 +168,6 @@ class PEIWM_Admin_Menu {
 			array( $this, 'pages_page' )
 		);
 
-		// Add themes & plugins submenu
-		add_submenu_page(
-			'peiwm-secure',
-			esc_html__( 'WP Toolkit', 'post-export-import-with-media' ),
-			esc_html__( 'WP Toolkit', 'post-export-import-with-media' ),
-			'manage_options',
-			'peiwm-themes-plugins',
-			array( $this, 'themes_plugins_page' )
-		);
-
 		// Media Health & Audit page
 		add_submenu_page(
 			'peiwm-secure',
@@ -333,7 +323,7 @@ class PEIWM_Admin_Menu {
 		if ( strpos( $hook, 'peiwm-media-audit' ) !== false ) {
 			wp_enqueue_script(
 				'peiwm-admin-js',
-				PEIWM_PLUGIN_URL . 'assets/js/admin.js',
+				PEIWM_PLUGIN_URL . 'build/js/admin.min.js',
 				array( 'jquery' ),
 				PEIWM_VERSION,
 				true
@@ -353,7 +343,7 @@ class PEIWM_Admin_Menu {
 
 			wp_enqueue_script(
 				'peiwm-media-audit-js',
-				PEIWM_PLUGIN_URL . 'assets/js/media-audit.js',
+				PEIWM_PLUGIN_URL . 'build/js/media-audit.min.js',
 				array( 'jquery', 'peiwm-admin-js' ),
 				PEIWM_VERSION,
 				true
@@ -361,7 +351,7 @@ class PEIWM_Admin_Menu {
 
 			wp_enqueue_style(
 				'peiwm-admin-css',
-				PEIWM_PLUGIN_URL . 'assets/css/admin.css',
+				PEIWM_PLUGIN_URL . 'build/css/admin.min.css',
 				array(),
 				PEIWM_VERSION
 			);
@@ -672,7 +662,7 @@ class PEIWM_Admin_Menu {
 
 			wp_enqueue_style(
 				'peiwm-media-alt-editor-css',
-				PEIWM_PLUGIN_URL . 'assets/css/media-alt-editor.css',
+				PEIWM_PLUGIN_URL . 'build/css/media-alt-editor.min.css',
 				array( 'peiwm-admin-css' ),
 				PEIWM_VERSION
 			);
@@ -685,7 +675,7 @@ class PEIWM_Admin_Menu {
 
 				wp_enqueue_script(
 					'peiwm-media-alt-editor-js',
-					$pro_js_url . 'assets/js/media-alt-editor.js',
+					$pro_js_url . 'build/js/media-alt-editor.js',
 					array( 'jquery' ),
 					$pro_ver,
 					true

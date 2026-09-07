@@ -4,7 +4,7 @@ Tags: export-media, import, post-export, page-export, migration
 Requires at least: 6.7
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable Tag: 1.16.0
+Stable Tag: 1.16.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -295,6 +295,9 @@ Use the support forum on this plugin's WordPress.org page. Include your WordPres
 4. Dashboard of WordPress Settings Export/Import.
 
 == Changelog ==
+
+= 1.16.1 – 08 September 2026 =
+* **Fix:** Media Health & Audit Scan Issues. 
 
 = 1.16.0 – 25 August 2026 =
 * **New:** Media Health & Audit feature to scan media library, detect unused images, analyze risk/confidence levels, and calculate health score.
