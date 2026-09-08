@@ -4,7 +4,7 @@ Tags: export-media, import, post-export, page-export, migration
 Requires at least: 6.7
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable Tag: 1.16.1
+Stable Tag: 1.17.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -14,6 +14,10 @@ Export and import WordPress posts, pages, users, widgets, menus, themes & settin
 **Post Export Import with Media** exports and imports posts, pages, media, users, widgets, menus, themes, plugins, and settings between WordPress sites, with every image and attachment carried across intact. The default WordPress exporter leaves image files behind and only writes a reference to them; this plugin downloads and reattaches the actual files, metadata, so imported content never ends up with broken data, links or missing thumbnails.
 
 Whether you're moving to a new host, creating staging sites, or backing up your content, this plugin handles everything with professional-grade reliability, user-friendly interface and powerful built-in Batch Processing for high-performance transfers all designed for simplicity and control.
+
+**After moving your posts, the real work starts.** Audit, compare, repair, clean up, and optimize your imported content, media, links, SEO, and metadata with powerful built in tools.
+
+**Everything you need after migration.** Find missing images, broken links, duplicate content, orphaned posts, SEO issues, and content changes, then fix them quickly and confidently with the same **Post Export Import with Media** using the Post Tools & Migration Suite.
 
 
 ### ✨ Key Features  
@@ -25,17 +29,25 @@ Whether you're moving to a new host, creating staging sites, or backing up your 
 - **Media Title & ALT Editor** - Bulk optimize titles and ALT text with inline editing and CSV import/export  
 - Support for featured images and inline content images
 - Enable WPML multilingual language support
-- Smart Image Matching Strategy:
+- **Smart Image Matching Strategy**
   - Verify only fallback matches (fastest)
   - Verify all matches (prevents duplicate filename mismatches)
   - Always download fresh images
 - Link reused media to imported posts by updating the **Uploaded to** relationship
-- Selective Export & Import
+- **Selective Export & Import**
   - Export specific posts or pages instead of entire content
   - Export content by date range
     - Filter posts using custom From and To dates before export
   - Preview and choose content before importing
-  - Set status before import (Public, Private, Draft)
+  - Set status before import (Public, Private, Draft, Pending, or Preserve Existing)
+- Import Post Status Control - Flexible status assignment (Draft, Pending, Private, Published, or Preserve Original) to review imported content before going live
+- Internal Link Finder & Domain Replacer - Scan and bulk-update outdated domains, staging URLs, and internal links across posts, pages, and meta
+- Find & Replace Tool - Search and replace text, shortcodes, and URLs across content, excerpts, and custom fields with dry-run preview and selective execution
+- Visual Post Compare & Diff - Side-by-side visual diff comparison between posts or revisions to inspect changes in titles, excerpts, content, and metadata
+- Post Health & Cleanup Scanner - Detect unassigned categories, missing tags, duplicate slugs, and broken image URLs with one-click cleanup
+- Missing Featured Image Finder - Identify posts lacking featured images and extract images from content to set as thumbnails
+- Duplicate Post & Page Detector - Group duplicate content clusters by title, slug, or content hash to clean redundant posts while preserving originals
+- Orphaned & Unlinked Post Finder - Discover posts with zero incoming internal links or unassigned taxonomies to improve SEO crawl depth
 - Bulk delete functionality with confirmation dialogs
 - **CPT & ACF Export/Import**
   - Export Custom Post Types with all associated posts  
@@ -46,6 +58,10 @@ Whether you're moving to a new host, creating staging sites, or backing up your 
 - Works for bloggers, developers, and site administrators  
 - Batch Processing Settings (Optimized for large-scale websites)
 - Scheduled Exports (Automated Backups)
+- **Post SEO Analysis & Diff Tab (Post Tools & Migration Suite)**
+  - Smart Site-Wide SEO Scan and Compare
+  - Inspect Post with Google Search Result Snippet
+  - Instant SEO Quick-Fix & Metadata Editor
 - **Users Export/Import**
   - Smart author mapping (match by username or email instead of ID)
   - Assign posts to current admin user
@@ -56,10 +72,10 @@ Whether you're moving to a new host, creating staging sites, or backing up your 
   - WooCommerce user data (billing, shipping, last active)
   - ACF user fields support
   - CPT authorship mapping for accurate reassignment
-  - Import options:
-    - Set default password for all imported users
-    - Send welcome email with login credentials (if email is configured)
-    - Try to preserve original user IDs (conflicts logged)
+- **Import options**
+  - Set default password for all imported users
+  - Send welcome email with login credentials (if email is configured)
+  - Try to preserve original user IDs (conflicts logged)
 
 #### **Media & Image Handling & Audit**
 * Automatic media detection and download during import
@@ -75,7 +91,7 @@ Whether you're moving to a new host, creating staging sites, or backing up your 
   * Real-time diff tracking for modified titles and ALT attributes
   * Filter images by missing ALT text or title search
   * Batch update support via CSV Export and CSV Import
-* Smart Image Matching Strategy:
+* **Smart Image Matching Strategy**
   * Verify only fallback matches (fastest)
   * Verify all matches (verifies file size to prevent duplicate filename mismatches)
   * Always download fresh images from the source
@@ -143,6 +159,16 @@ Whether you're moving to a new host, creating staging sites, or backing up your 
 * **System Configuration Test** - Check server capabilities and requirements
 * **Plugin Recommendations** - Curated list of useful WordPress plugins
 
+#### **Post Tools & Migration Suite**
+* **Import Post Status Control**: Choose how imported content lands on your site (Draft, Pending Review, Private, Published, or Preserve Original Status). Perfect for editorial staging and pre-publish QA.
+* **Internal Link Finder & Domain Replacer**: Scan post content, excerpts, and custom fields to find outdated staging URLs, legacy domains, or broken links. Bulk-replace or update only selected posts with a single click.
+* **Find & Replace Across Content, Excerpts & Meta**: Safely search and replace strings, shortcodes, and URLs across posts, pages, and custom post types. Includes dry-run diff preview and selective execution.
+* **Visual Post Compare & Diff**: Side-by-side visual diff comparison between any two posts or revisions to inspect title, slug, excerpt, content, status, and metadata changes before publishing.
+* **Post Health & Cleanup Scanner**: Run full site diagnostics to find unassigned categories, missing tags, duplicate slugs, and broken images, with one-click cleanup tools.
+* **Missing Featured Image Finder & Downloader**: Scan posts lacking featured images and extract inline images directly from content to set as thumbnails.
+* **Duplicate Post & Page Detector**: Scan content clusters to find duplicate posts by exact title, slug, or content hash, and clean redundant entries while keeping the original.
+* **Orphaned & Unlinked Post Finder**: Identify isolated posts that have zero incoming internal links or unassigned taxonomies to improve site structure and search engine indexing.
+
 ### 🎯 **Perfect For**
 
 * **Web Developers** - Quickly clone sites for development and testing
@@ -152,15 +178,6 @@ Whether you're moving to a new host, creating staging sites, or backing up your 
 * **Client Handoffs** - Package complete sites for client delivery
 * **Multi-site Management** - Sync content between multiple WordPress installations
 
-### 🔧 **Technical Excellence**
-
-* **Security First** - All operations use WordPress nonces and capability checks
-* **Memory Efficient** - Handles large sites without memory issues
-* **Cross-Platform** - Works on Windows, Linux, and macOS servers
-* **Error Recovery** - Comprehensive error handling and user feedback
-* **Progress Tracking** - Real-time updates during long operations
-* **Clean Code** - Well-documented, maintainable codebase following WordPress standards
-
 ### 📊 **Real-time Progress & Logging**
 
 Every operation provides detailed feedback:
@@ -169,14 +186,6 @@ Every operation provides detailed feedback:
 * Detailed statistics (items imported, skipped, failed)
 * Clear error messages with actionable solutions
 * Import/export summaries with file information
-
-### 🎨 **User Experience**
-* **Intuitive Interface** - Clean, modern admin interface
-* **Responsive Design** - Works perfectly on desktop and mobile
-* **Modal Confirmations** - Safe operations with confirmation dialogs
-* **Detailed Help** - Comprehensive descriptions and usage instructions
-* **Professional Styling** - Matches WordPress admin design language
-
 
 == Installation ==
 You can install the plugin manually or via the WordPress admin panel.
@@ -296,7 +305,18 @@ Use the support forum on this plugin's WordPress.org page. Include your WordPres
 
 == Changelog ==
 
-= 1.16.1 – 08 September 2026 =
+= 1.17.0 – 08 September 2026 =
+* **New:** Post SEO Analysis & Diff Tab (Post Tools & Migration Suite)
+* **New:** Import Status Logic (Global + Override)
+* **New:** Post Diff & Version Revert 
+* **New:** Internal Link Finder & Domain Replacer
+* **New:** Post Compare (Imported vs Existing & Diff)
+* **New:** Post Cleanup Scanner & Fixer
+* **New:** Missing Featured Image Finder
+* **New:** Duplicate Post Detector
+* **New:** Orphaned Post Finder
+
+= 1.16.1 – 07 September 2026 =
 * **Fix:** Media Health & Audit Scan Issues. 
 
 = 1.16.0 – 25 August 2026 =

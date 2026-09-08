@@ -376,6 +376,14 @@ class PEIWM_Post_Handler {
 				$sanitized_post_data['post_status'] = $force_status;
 			}
 
+			// Allow Pro to apply advanced status transition rules or preserve custom statuses via filter
+			$sanitized_post_data['post_status'] = apply_filters(
+				'peiwm_import_post_status',
+				$sanitized_post_data['post_status'],
+				$post_data,
+				$force_status
+			);
+
 			$original_author_id = isset( $post_data['post_author'] ) ? absint( $post_data['post_author'] ) : 0;
 
 			$resolved_author_id = ( $original_author_id > 0 && false !== get_userdata( $original_author_id ) )

@@ -10,6 +10,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class PEIWM_Media_Audit_Controller {
 
+	const DB_VERSION = '1.0.0';
+
 	private static $instance = null;
 
 	public static function get_instance() {
@@ -20,14 +22,19 @@ class PEIWM_Media_Audit_Controller {
 	}
 
 	private function __construct() {
-		// Auto-initialize tables on construction
+		// Auto-initialize tables on construction only if not already installed/updated
 		$this->init_tables();
 	}
 
 	/**
 	 * Create or update plugin database tables
 	 */
-	public function init_tables() {
+	public function init_tables( $force = false ) {
+		$installed_ver = get_option( 'peiwm_media_audit_db_version', '' );
+		if ( ! $force && version_compare( $installed_ver, self::DB_VERSION, '>=' ) ) {
+			return;
+		}
+
 		global $wpdb;
 
 		$charset_collate = $wpdb->get_charset_collate();
@@ -105,6 +112,8 @@ class PEIWM_Media_Audit_Controller {
 
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		dbDelta( $sql );
+
+		update_option( 'peiwm_media_audit_db_version', self::DB_VERSION );
 	}
 
 	/**

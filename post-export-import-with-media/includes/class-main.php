@@ -255,6 +255,48 @@ class PEIWM_Main {
 		if ( $has_pro && file_exists( $pro_path . 'class-scheduled-exports.php' ) ) {
 			require_once $pro_path . 'class-scheduled-exports.php';
 		}
+
+		// Internal links handler
+		require_once PEIWM_PLUGIN_PATH . 'includes/class-internal-links-handler.php';
+		if ( $has_pro && file_exists( $pro_path . 'class-internal-links-handler-pro.php' ) ) {
+			require_once $pro_path . 'class-internal-links-handler-pro.php';
+		}
+
+		// Post compare handler
+		require_once PEIWM_PLUGIN_PATH . 'includes/class-post-compare-handler.php';
+		if ( $has_pro && file_exists( $pro_path . 'class-post-compare-handler-pro.php' ) ) {
+			require_once $pro_path . 'class-post-compare-handler-pro.php';
+		}
+
+		// Post cleanup scanner
+		require_once PEIWM_PLUGIN_PATH . 'includes/class-cleanup-scanner.php';
+		if ( $has_pro && file_exists( $pro_path . 'class-cleanup-scanner-pro.php' ) ) {
+			require_once $pro_path . 'class-cleanup-scanner-pro.php';
+		}
+
+		// Missing featured image handler (Pro)
+		if ( $has_pro && file_exists( $pro_path . 'class-featured-image-handler-pro.php' ) ) {
+			require_once $pro_path . 'class-featured-image-handler-pro.php';
+		}
+
+		// Duplicate detector handler
+		require_once PEIWM_PLUGIN_PATH . 'includes/class-duplicate-detector-handler.php';
+		if ( $has_pro && file_exists( $pro_path . 'class-duplicate-detector-handler-pro.php' ) ) {
+			require_once $pro_path . 'class-duplicate-detector-handler-pro.php';
+		}
+
+		// Orphaned posts handler (Pro)
+		if ( $has_pro && file_exists( $pro_path . 'class-orphaned-posts-handler-pro.php' ) ) {
+			require_once $pro_path . 'class-orphaned-posts-handler-pro.php';
+		}
+
+		// Post diff handler
+		require_once PEIWM_PLUGIN_PATH . 'includes/class-post-diff-handler.php';
+
+		// SEO analysis handler (Pro)
+		if ( $has_pro && file_exists( $pro_path . 'class-seo-analysis-handler-pro.php' ) ) {
+			require_once $pro_path . 'class-seo-analysis-handler-pro.php';
+		}
 	}
 
 	/**
@@ -366,6 +408,58 @@ class PEIWM_Main {
 			PEIWM_User_Handler::get_instance();
 		}
 		
+		// Initialize internal links handler
+		if ( class_exists( 'PEIWM_Internal_Links_Handler' ) ) {
+			PEIWM_Internal_Links_Handler::get_instance();
+		}
+		if ( $is_pro && class_exists( 'PEIWM_Internal_Links_Handler_Pro' ) ) {
+			PEIWM_Internal_Links_Handler_Pro::get_instance();
+		}
+
+		// Initialize post compare handler
+		if ( class_exists( 'PEIWM_Post_Compare_Handler' ) ) {
+			PEIWM_Post_Compare_Handler::get_instance();
+		}
+		if ( $is_pro && class_exists( 'PEIWM_Post_Compare_Handler_Pro' ) ) {
+			PEIWM_Post_Compare_Handler_Pro::get_instance();
+		}
+
+		// Initialize cleanup scanner
+		if ( class_exists( 'PEIWM_Cleanup_Scanner' ) ) {
+			PEIWM_Cleanup_Scanner::get_instance();
+		}
+		if ( $is_pro && class_exists( 'PEIWM_Cleanup_Scanner_Pro' ) ) {
+			PEIWM_Cleanup_Scanner_Pro::get_instance();
+		}
+
+		// Initialize missing media handler (Pro)
+		if ( $is_pro && class_exists( 'PEIWM_Featured_Image_Handler_Pro' ) ) {
+			PEIWM_Featured_Image_Handler_Pro::get_instance();
+		}
+
+		// Initialize duplicate detector handler
+		if ( class_exists( 'PEIWM_Duplicate_Detector_Handler' ) ) {
+			PEIWM_Duplicate_Detector_Handler::get_instance();
+		}
+		if ( $is_pro && class_exists( 'PEIWM_Duplicate_Detector_Handler_Pro' ) ) {
+			PEIWM_Duplicate_Detector_Handler_Pro::get_instance();
+		}
+
+		// Initialize orphaned posts handler (Pro)
+		if ( $is_pro && class_exists( 'PEIWM_Orphaned_Posts_Handler_Pro' ) ) {
+			PEIWM_Orphaned_Posts_Handler_Pro::get_instance();
+		}
+
+		// Initialize post diff handler
+		if ( class_exists( 'PEIWM_Post_Diff_Handler' ) ) {
+			PEIWM_Post_Diff_Handler::get_instance();
+		}
+
+		// Initialize SEO analysis handler (Pro)
+		if ( $is_pro && class_exists( 'PEIWM_SEO_Analysis_Handler_Pro' ) ) {
+			PEIWM_SEO_Analysis_Handler_Pro::get_instance();
+		}
+
 		// Initialize recommendations
 		if ( class_exists( 'Recommendations' ) ) {
 			new Recommendations();

@@ -168,6 +168,16 @@ class PEIWM_Admin_Menu {
 			array( $this, 'pages_page' )
 		);
 
+		// Post Tools submenu page (Migration utilities: Internal Links, Compare, Cleanup, Duplicates, etc.)
+		add_submenu_page(
+			'peiwm-secure',
+			esc_html__( 'Migration utilities', 'post-export-import-with-media' ),
+			esc_html__( 'Migration utilities', 'post-export-import-with-media' ),
+			'manage_options',
+			'peiwm-post-tools',
+			array( $this, 'post_tools_page' )
+		);
+
 		// Media Health & Audit page
 		add_submenu_page(
 			'peiwm-secure',
@@ -316,6 +326,49 @@ class PEIWM_Admin_Menu {
 				PEIWM_PLUGIN_URL . 'build/css/global-peiwm.css.min.css',
 				array(),
 				PEIWM_VERSION
+			);
+		}
+
+		// Post Tools page
+		if ( strpos( $hook, 'peiwm-post-tools' ) !== false ) {
+			wp_enqueue_media();
+			wp_enqueue_style(
+				'peiwm-admin-css',
+				PEIWM_PLUGIN_URL . 'build/css/admin.min.css',
+				array(),
+				PEIWM_VERSION
+			);
+
+			wp_enqueue_script(
+				'peiwm-admin-js',
+				PEIWM_PLUGIN_URL . 'build/js/admin.min.js',
+				array( 'jquery' ),
+				PEIWM_VERSION,
+				true
+			);
+
+			wp_localize_script( 'peiwm-admin-js', 'peiwm_ajax', array(
+				'ajax_url'      => admin_url( 'admin-ajax.php' ),
+				'nonce'         => wp_create_nonce( 'peiwm_secure_nonce' ),
+				'is_pro_active' => PEIWM_Main::get_instance()->is_pro_active(),
+				'site_url'      => untrailingslashit( home_url() ),
+				'strings'       => array(
+					'scanning'        => esc_html__( 'Scanning posts...', 'post-export-import-with-media' ),
+					'replacing'       => esc_html__( 'Replacing internal links...', 'post-export-import-with-media' ),
+					'success'         => esc_html__( 'Success!', 'post-export-import-with-media' ),
+					'error'           => esc_html__( 'Error:', 'post-export-import-with-media' ),
+					'enter_old_url'   => esc_html__( 'Please enter the old domain or URL to scan.', 'post-export-import-with-media' ),
+					'enter_both_urls' => esc_html__( 'Please enter both Old URL and New URL for replacement.', 'post-export-import-with-media' ),
+					'confirm_replace' => esc_html__( 'Are you sure you want to replace links across all matching posts? We recommend having a database backup.', 'post-export-import-with-media' ),
+				),
+			) );
+
+			wp_enqueue_script(
+				'peiwm-premium-modal-js',
+				PEIWM_PLUGIN_URL . 'build/js/premium-modal-handler.min.js',
+				array( 'jquery' ),
+				PEIWM_VERSION,
+				true
 			);
 		}
 
@@ -669,13 +722,23 @@ class PEIWM_Admin_Menu {
 
 			$is_pro = PEIWM_Main::get_instance()->is_pro_active();
 
-			if ( $is_pro ) {
-				$pro_js_url = defined( 'PEIWM_PRO_PLUGIN_URL' ) ? PEIWM_PRO_PLUGIN_URL : PEIWM_PLUGIN_URL . 'PRO/';
-				$pro_ver    = defined( 'PEIWM_PRO_VERSION' ) ? PEIWM_PRO_VERSION : PEIWM_VERSION;
+			if ( $is_pro && defined( 'PEIWM_PRO_PLUGIN_URL' ) ) {
+				$pro_ver = defined( 'PEIWM_PRO_VERSION' ) ? PEIWM_PRO_VERSION : PEIWM_VERSION;
 
+				// Enqueue PRO styling
+				if ( defined( 'PEIWM_PRO_PLUGIN_PATH' ) && file_exists( PEIWM_PRO_PLUGIN_PATH . 'assets/css/pro-admin.css' ) ) {
+					wp_enqueue_style(
+						'peiwm-pro-admin',
+						PEIWM_PRO_PLUGIN_URL . 'assets/css/pro-admin.css',
+						array( 'peiwm-media-alt-editor-css' ),
+						$pro_ver
+					);
+				}
+
+				// Load PRO script directly from assets (no build folder in PRO)
 				wp_enqueue_script(
 					'peiwm-media-alt-editor-js',
-					$pro_js_url . 'build/js/media-alt-editor.js',
+					PEIWM_PRO_PLUGIN_URL . 'assets/js/media-alt-editor.js',
 					array( 'jquery' ),
 					$pro_ver,
 					true
@@ -1090,6 +1153,28 @@ class PEIWM_Admin_Menu {
 						<!-- Advanced Panel (Collapsible) -->
 						<div class="peiwm-advanced-panel" id="peiwm-advanced-import-posts" aria-hidden="true">
 							
+						<!-- Global Post Import Status Setting -->
+							<div class="peiwm-inline-row peiwm-import-global-status-row" style="margin-top: 1rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+								<div>
+									<label for="peiwm-global-import-status" style="font-size: 13px; font-weight: 600; display: block; margin-bottom: 3px; color: #1e1e1e;">
+										<?php echo esc_html__( 'Global Import Post Status', 'post-export-import-with-media' ); ?>
+									</label>
+									<span class="peiwm-checkbox-description" style="display: block; font-size: 12px; color: #6b7280;">
+										<?php echo esc_html__( 'Default status applied to all imported posts unless individually overridden below.', 'post-export-import-with-media' ); ?>
+									</span>
+								</div>
+								<div>
+									<select id="peiwm-global-import-status" name="peiwm_global_import_status" class="peiwm-select" style="min-width: 180px; font-size: 13px; padding: 5px 10px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; color: #1e1e1e; font-weight: 500;">
+										<option value="original"><?php echo esc_html__( 'Keep Original Status', 'post-export-import-with-media' ); ?></option>
+										<option value="publish"><?php echo esc_html__( 'Published', 'post-export-import-with-media' ); ?></option>
+										<option value="draft"><?php echo esc_html__( 'Draft', 'post-export-import-with-media' ); ?></option>
+										<option value="pending"><?php echo esc_html__( 'Pending Review', 'post-export-import-with-media' ); ?></option>
+										<option value="private"><?php echo esc_html__( 'Private', 'post-export-import-with-media' ); ?></option>
+									</select>
+								</div>
+							</div>
+
+							
 							<label class="peiwm-checkbox-label">
 								<input type="checkbox" id="peiwm-check-media-library" checked>
 								<span class="peiwm-checkbox-text">
@@ -1204,6 +1289,7 @@ class PEIWM_Admin_Menu {
 								</label>
 							</div>
 
+							
 							<!-- PRO Row: Import individually -->
 							<div class="peiwm-inline-row <?php echo ! $is_pro_exp ? 'peiwm-pro-inline-row is-locked peiwm-locked-section peiwm-open-premium-modal' : ''; ?>">
 								<label class="peiwm-checkbox-label">
@@ -3787,12 +3873,9 @@ class PEIWM_Admin_Menu {
 
 		$is_pro_active = PEIWM_Main::get_instance()->is_pro_active();
 
-		if ( $is_pro_active ) {
-			if ( ! class_exists( 'PEIWM_Media_Alt_Editor_Page_Pro' ) ) {
-				$pro_path = defined( 'PEIWM_PRO_PLUGIN_PATH' ) ? PEIWM_PRO_PLUGIN_PATH : PEIWM_PLUGIN_PATH . 'PRO/';
-				if ( file_exists( $pro_path . 'includes/class-media-alt-editor-page-pro.php' ) ) {
-					require_once $pro_path . 'includes/class-media-alt-editor-page-pro.php';
-				}
+		if ( $is_pro_active && defined( 'PEIWM_PRO_PLUGIN_PATH' ) ) {
+			if ( ! class_exists( 'PEIWM_Media_Alt_Editor_Page_Pro' ) && file_exists( PEIWM_PRO_PLUGIN_PATH . 'includes/class-media-alt-editor-page-pro.php' ) ) {
+				require_once PEIWM_PRO_PLUGIN_PATH . 'includes/class-media-alt-editor-page-pro.php';
 			}
 			if ( class_exists( 'PEIWM_Media_Alt_Editor_Page_Pro' ) ) {
 				PEIWM_Media_Alt_Editor_Page_Pro::render();
@@ -3833,6 +3916,2110 @@ class PEIWM_Admin_Menu {
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-media-audit-review-page.php';
 		$page = new PEIWM_Media_Audit_Review_Page();
 		$page->render();
+		$this->render_modal_templates();
+	}
+
+	/**
+	 * Render Post Tools & Migration Suite page
+	 */
+	public function post_tools_page() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'post-export-import-with-media' ) );
+		}
+
+		$is_pro           = PEIWM_Main::get_instance()->is_pro_active();
+		$current_site_url = untrailingslashit( home_url() );
+		?>
+		<div class="wrap peiwm-admin">
+
+			<!-- PAGE HEADER -->
+			<div class="page-header" style="display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 14px;">
+				<div>
+					<div class="crumb" style="font-size: 12.5px; color: #6c7385; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+						<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+						</svg>Export/Import <span style="margin:0 2px;">/</span> Post Tools
+					</div>
+					<h1 class='heading-admin' style="margin-bottom:0; font-size: 27px; font-weight: 700;">
+						<?php echo esc_html__( 'Post Tools & Migration Suite', 'post-export-import-with-media' ); ?>
+					</h1>
+					<p class="sub" style="font-size: 13.5px; color: #6c7385; margin-top: 6px; max-width: 620px;">
+						<?php echo esc_html__( 'Essential post migration tools to scan, repair, compare, and optimize your WordPress content before and after migrations.', 'post-export-import-with-media' ); ?>
+					</p>
+				</div>
+			</div>
+
+			<!-- POST TOOLS TABS NAVIGATION -->
+			<div class="peiwm-post-tools-nav" style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; flex-wrap: wrap;">
+				<button type="button" class="peiwm-pt-tab-btn" data-tab="internal-links">
+					<svg class="peiwm-pt-tab-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+						<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+					</svg>
+					<?php echo esc_html__( 'Internal Links', 'post-export-import-with-media' ); ?>
+				</button>
+				<button type="button" class="peiwm-pt-tab-btn" data-tab="find-replace">
+					<svg class="peiwm-pt-tab-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="11" cy="11" r="8" />
+						<line x1="21" y1="21" x2="16.65" y2="16.65" />
+						<path d="M11 8v6M8 11h6" />
+					</svg>
+					<?php echo esc_html__( 'Find & Replace', 'post-export-import-with-media' ); ?>
+					<?php if ( ! $is_pro ) : ?><span class="peiwm-pro-lock"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -1px; margin-right: 2px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span><?php endif; ?>
+				</button>
+				<button type="button" class="peiwm-pt-tab-btn" data-tab="post-compare">
+					<svg class="peiwm-pt-tab-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+						<path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+						<path d="M7 21h10" />
+						<path d="M12 3v18" />
+						<path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
+					</svg>
+					<?php echo esc_html__( 'Compare Posts', 'post-export-import-with-media' ); ?>
+				</button>
+				<button type="button" class="peiwm-pt-tab-btn" data-tab="post-cleanup">
+					<svg class="peiwm-pt-tab-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="m14 11 6.5-6.5a2.12 2.12 0 0 0-3-3L11 8" />
+						<path d="m8 11-4 4 1.5 5.5L11 22l4-4" />
+						<path d="m5 18 3-3" />
+					</svg>
+					<?php echo esc_html__( 'Health & Cleanup', 'post-export-import-with-media' ); ?>
+				</button>
+				<button type="button" class="peiwm-pt-tab-btn" data-tab="missing-media">
+					<svg class="peiwm-pt-tab-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+						<circle cx="8.5" cy="8.5" r="1.5" />
+						<polyline points="21 15 16 10 5 21" />
+					</svg>
+					<?php echo esc_html__( 'Missing Media', 'post-export-import-with-media' ); ?>
+					<?php if ( ! $is_pro ) : ?><span class="peiwm-pro-lock"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -1px; margin-right: 2px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span><?php endif; ?>
+				</button>
+				<button type="button" class="peiwm-pt-tab-btn" data-tab="duplicate-detector">
+					<svg class="peiwm-pt-tab-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+						<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+					</svg>
+					<?php echo esc_html__( 'Duplicates', 'post-export-import-with-media' ); ?>
+				</button>
+				<button type="button" class="peiwm-pt-tab-btn" data-tab="orphaned-posts">
+					<svg class="peiwm-pt-tab-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+						<path d="m5.16 11.75-1.72 1.71a5 5 0 0 0 7.07 7.07l1.72-1.71" />
+						<line x1="2" y1="2" x2="22" y2="22" />
+					</svg>
+					<?php echo esc_html__( 'Orphaned Posts', 'post-export-import-with-media' ); ?>
+					<?php if ( ! $is_pro ) : ?><span class="peiwm-pro-lock"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -1px; margin-right: 2px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span><?php endif; ?>
+				</button>
+				<button type="button" class="peiwm-pt-tab-btn" data-tab="post-diff">
+					<svg class="peiwm-pt-tab-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="18" cy="18" r="3" />
+						<circle cx="6" cy="6" r="3" />
+						<path d="M13 6h3a2 2 0 0 1 2 2v7" />
+						<path d="M11 18H8a2 2 0 0 1-2-2V9" />
+					</svg>
+					<?php echo esc_html__( 'Post Diff', 'post-export-import-with-media' ); ?>
+				</button>
+				<button type="button" class="peiwm-pt-tab-btn" data-tab="seo-analysis">
+					<svg class="peiwm-pt-tab-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M3 3v18h18" />
+						<path d="m19 9-5 5-4-4-3 3" />
+					</svg>
+					<?php echo esc_html__( 'Post SEO Analysis', 'post-export-import-with-media' ); ?>
+					<?php if ( ! $is_pro ) : ?><span class="peiwm-pro-lock"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -1px; margin-right: 2px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span><?php endif; ?>
+				</button>
+			</div>
+
+			<!-- TAB 1: INTERNAL LINKS -->
+			<div class="peiwm-pt-tab-pane" id="peiwm-pane-internal-links" style="display: none;">
+				<div class="peiwm-section" style="margin-bottom: 24px;">
+					<div class="panel-head">
+						<div class="panel-title">
+							<div class="panel-icon posts" style="background: rgba(14, 165, 233, 0.1); color: #0284c7;">
+								<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+									<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+								</svg>
+							</div>
+							<div>
+								<h3 style="margin: 0; font-size: 17px; font-weight: 600; color: #1e293b;">
+									<?php echo esc_html__( 'Internal Link Finder & Domain Replacer', 'post-export-import-with-media' ); ?>
+								</h3>
+								<span style="font-size: 13px; color: #64748b;">
+									<?php echo esc_html__( 'Find posts containing links to your old domain or staging site and replace them with your current site address.', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<div style="padding: 20px 24px;">
+						<!-- Input Grid -->
+						<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 18px;">
+							<div>
+								<label for="peiwm-il-old-url" style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px;">
+									<?php echo esc_html__( 'Old Domain or URL to Find:', 'post-export-import-with-media' ); ?>
+									<span style="color: #ef4444;">*</span>
+								</label>
+								<input type="text" id="peiwm-il-old-url" placeholder="https://oldsite.com or oldsite.com" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13.5px; box-sizing: border-box;" />
+								<span style="display: block; font-size: 11.5px; color: #64748b; margin-top: 4px;">
+									<?php echo esc_html__( 'Enter the previous domain, staging URL, or path to search for.', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+							<div>
+								<label for="peiwm-il-new-url" style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px;">
+									<?php echo esc_html__( 'New Destination URL (for Replacement):', 'post-export-import-with-media' ); ?>
+								</label>
+								<input type="text" id="peiwm-il-new-url" value="<?php echo esc_attr( $current_site_url ); ?>" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13.5px; box-sizing: border-box;" />
+								<span style="display: block; font-size: 11.5px; color: #64748b; margin-top: 4px;">
+									<?php echo esc_html__( 'Defaults to your current site address.', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+
+						<!-- Options Row -->
+						<div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; padding: 12px 16px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: #334155;">
+								<input type="checkbox" id="peiwm-il-include-pages" checked />
+								<span><?php echo esc_html__( 'Include Pages in scan', 'post-export-import-with-media' ); ?></span>
+							</label>
+
+							<div class="peiwm-inline-row <?php echo ! $is_pro ? 'peiwm-pro-inline-row is-locked peiwm-locked-section peiwm-open-premium-modal' : ''; ?>" style="display: inline-flex; align-items: center; margin: 0; padding: 4px 12px; border-radius: 6px; position: relative;">
+								<label style="display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; color: #334155; margin: 0;">
+									<input type="checkbox" id="peiwm-il-replace-meta" <?php echo ! $is_pro ? 'disabled' : ''; ?> />
+									<span>
+										<strong><?php echo esc_html__( 'Scan & replace in Post Meta & ACF', 'post-export-import-with-media' ); ?></strong>
+										<?php if ( ! $is_pro ) : ?>
+											<span class="peiwm-pro-lock">🔒 PRO</span>
+										<?php endif; ?>
+									</span>
+								</label>
+							</div>
+						</div>
+
+						<!-- Action Buttons -->
+						<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+							<button type="button" id="peiwm-il-scan-btn" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; font-weight: 600;">
+								<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="11" cy="11" r="8"></circle>
+									<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+								</svg>
+								<?php echo esc_html__( 'Scan Internal Links', 'post-export-import-with-media' ); ?>
+							</button>
+
+							<?php if ( $is_pro ) : ?>
+								<button type="button" id="peiwm-il-replace-btn" class="btn btn-secondary" style="display: none; align-items: center; gap: 6px; padding: 8px 18px; font-weight: 600; background: #0284c7; color: #fff; border-color: #0284c7;">
+									<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M21 2v6h-6"></path>
+										<path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+										<path d="M3 22v-6h6"></path>
+										<path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+									</svg>
+									<?php echo esc_html__( 'Replace All Links', 'post-export-import-with-media' ); ?>
+								</button>
+								<button type="button" id="peiwm-il-replace-selected-btn" class="btn btn-secondary" style="display: none; align-items: center; gap: 6px; padding: 8px 18px; font-weight: 600; background: #0ea5e9; color: #fff; border-color: #0ea5e9;">
+									<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M21 2v6h-6"></path>
+										<path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+										<path d="M3 22v-6h6"></path>
+										<path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+									</svg>
+									<?php echo esc_html__( 'Replace Selected Links (', 'post-export-import-with-media' ); ?><span id="peiwm-il-selected-count">0</span>)
+								</button>
+							<?php else : ?>
+								<button type="button" id="peiwm-il-replace-btn" class="btn btn-secondary peiwm-open-premium-modal peiwm-locked-btn" style="display: none; align-items: center; gap: 6px; padding: 8px 18px; font-weight: 600;">
+									<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M21 2v6h-6"></path>
+										<path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+										<path d="M3 22v-6h6"></path>
+										<path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+									</svg>
+									<?php echo esc_html__( 'Replace All Links', 'post-export-import-with-media' ); ?>
+									
+								</button>
+								<button type="button" id="peiwm-il-replace-selected-btn" class="btn btn-secondary peiwm-open-premium-modal peiwm-locked-btn" style="display: none; align-items: center; gap: 6px; padding: 8px 18px; font-weight: 600;">
+									<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M21 2v6h-6"></path>
+										<path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+										<path d="M3 22v-6h6"></path>
+										<path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+									</svg>
+									<?php echo esc_html__( 'Replace Selected Links', 'post-export-import-with-media' ); ?>
+									
+								</button>
+							<?php endif; ?>
+						</div>
+
+						<!-- Progress Bar / Spinner -->
+						<div id="peiwm-il-progress" style="display: none; margin-top: 18px; padding: 14px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<div style="display: flex; align-items: center; gap: 10px;">
+								<div class="peiwm-loading-spinner" style="width: 20px; height: 20px;"></div>
+								<span id="peiwm-il-progress-text" style="font-size: 13px; font-weight: 600; color: #334155;">
+									<?php echo esc_html__( 'Scanning posts...', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+
+						<!-- Results Area -->
+						<div id="peiwm-il-results" style="display: none; margin-top: 24px;">
+							<div id="peiwm-il-summary" style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+								<div>
+									<strong id="peiwm-il-summary-title" style="font-size: 14px; color: #166534;"></strong>
+									<span id="peiwm-il-summary-desc" style="display: block; font-size: 12px; color: #15803d; margin-top: 2px;"></span>
+								</div>
+								<input type="text" id="peiwm-il-search-filter" placeholder="<?php esc_attr_e( 'Filter results...', 'post-export-import-with-media' ); ?>" style="padding: 4px 10px; font-size: 12px; border: 1px solid #86efac; border-radius: 4px; background: #fff;" />
+							</div>
+
+							<!-- Table -->
+							<div class="peiwm-drag-scroll-wrap" style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff;">
+								<table class="widefat fixed striped peiwm-table peiwm-il-table" id="peiwm-il-table">
+									<thead>
+										<tr>
+											<th class="peiwm-col-cb"><input type="checkbox" id="peiwm-il-select-all" /></th>
+											<th class="peiwm-col-title"><?php echo esc_html__( 'Post Title', 'post-export-import-with-media' ); ?></th>
+											<th class="peiwm-col-type"><?php echo esc_html__( 'Type', 'post-export-import-with-media' ); ?></th>
+											<th class="peiwm-col-matches" style="text-align: center;"><?php echo esc_html__( 'Links Found', 'post-export-import-with-media' ); ?></th>
+											<th class="peiwm-col-snippets"><?php echo esc_html__( 'Matched Snippets', 'post-export-import-with-media' ); ?></th>
+											<th class="peiwm-col-actions" style="text-align: right;"><?php echo esc_html__( 'Actions', 'post-export-import-with-media' ); ?></th>
+										</tr>
+									</thead>
+									<tbody id="peiwm-il-table-body">
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- TAB 2: FIND & REPLACE -->
+			<div class="peiwm-pt-tab-pane" id="peiwm-pane-find-replace" style="display: none;">
+				<div class="peiwm-section <?php echo ! $is_pro ? 'peiwm-locked-section' : ''; ?>" style="position: relative; margin-bottom: 24px;">
+					<?php if ( ! $is_pro ) : ?>
+						<button type="button" class="peiwm-pro-upgrade-overlay peiwm-open-premium-modal">
+							<span class="peiwm-pro-upgrade-badge">🔒 <?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span>
+						</button>
+					<?php endif; ?>
+
+					<div class="panel-head">
+						<div class="panel-title">
+							<div class="panel-icon posts" style="background: rgba(147, 51, 234, 0.1); color: #9333ea;">
+								<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="11" cy="11" r="8"></circle>
+									<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+									<path d="M11 8v6M8 11h6"></path>
+								</svg>
+							</div>
+							<div>
+								<h3 style="margin: 0; font-size: 17px; font-weight: 600; color: #1e293b;">
+									<?php echo esc_html__( 'Find & Replace Across Content, Excerpts & Meta', 'post-export-import-with-media' ); ?>
+									
+								</h3>
+								<span style="font-size: 13px; color: #64748b;">
+									<?php echo esc_html__( 'Deep search and replace strings across post titles, contents, excerpts, and serialized custom fields with safe dry-run preview.', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<div style="padding: 20px 24px;">
+						<!-- Input Grid -->
+						<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 18px;">
+							<div>
+								<label for="peiwm-fr-search" style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px;">
+									<?php echo esc_html__( 'Search For:', 'post-export-import-with-media' ); ?>
+									<span style="color: #ef4444;">*</span>
+								</label>
+								<input type="text" id="peiwm-fr-search" placeholder="<?php esc_attr_e( 'Text, URL, or pattern to find', 'post-export-import-with-media' ); ?>" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13.5px; box-sizing: border-box;" <?php echo ! $is_pro ? 'disabled' : ''; ?> />
+								
+								<div style="display: flex; gap: 16px; margin-top: 8px;">
+									<label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; cursor: pointer;">
+										<input type="checkbox" id="peiwm-fr-case-sensitive" <?php echo ! $is_pro ? 'disabled' : ''; ?> />
+										<span><?php echo esc_html__( 'Case sensitive', 'post-export-import-with-media' ); ?></span>
+									</label>
+									<label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; cursor: pointer;">
+										<input type="checkbox" id="peiwm-fr-use-regex" <?php echo ! $is_pro ? 'disabled' : ''; ?> />
+										<span><?php echo esc_html__( 'Regular Expression (Regex)', 'post-export-import-with-media' ); ?></span>
+									</label>
+								</div>
+							</div>
+
+							<div>
+								<label for="peiwm-fr-replace" style="display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px;">
+									<?php echo esc_html__( 'Replace With:', 'post-export-import-with-media' ); ?>
+								</label>
+								<input type="text" id="peiwm-fr-replace" placeholder="<?php esc_attr_e( 'Replacement text (leave empty to delete)', 'post-export-import-with-media' ); ?>" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13.5px; box-sizing: border-box;" <?php echo ! $is_pro ? 'disabled' : ''; ?> />
+								<span style="display: block; font-size: 11.5px; color: #64748b; margin-top: 4px;">
+									<?php echo esc_html__( 'Text to replace matched occurrences with.', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+
+						<!-- Scope / Fields Selection -->
+						<div style="margin-bottom: 20px; padding: 14px 16px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<div style="font-size: 12.5px; font-weight: 600; color: #334155; margin-bottom: 8px;">
+								<?php echo esc_html__( 'Target Fields to Search & Replace:', 'post-export-import-with-media' ); ?>
+							</div>
+							<div style="display: flex; gap: 20px; flex-wrap: wrap;">
+								<label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #334155; cursor: pointer;">
+									<input type="checkbox" class="peiwm-fr-field" value="content" checked <?php echo ! $is_pro ? 'disabled' : ''; ?> />
+									<span><?php echo esc_html__( 'Post Content', 'post-export-import-with-media' ); ?></span>
+								</label>
+								<label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #334155; cursor: pointer;">
+									<input type="checkbox" class="peiwm-fr-field" value="excerpt" checked <?php echo ! $is_pro ? 'disabled' : ''; ?> />
+									<span><?php echo esc_html__( 'Post Excerpt', 'post-export-import-with-media' ); ?></span>
+								</label>
+								<label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #334155; cursor: pointer;">
+									<input type="checkbox" class="peiwm-fr-field" value="title" checked <?php echo ! $is_pro ? 'disabled' : ''; ?> />
+									<span><?php echo esc_html__( 'Post Title', 'post-export-import-with-media' ); ?></span>
+								</label>
+								<label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #334155; cursor: pointer;">
+									<input type="checkbox" class="peiwm-fr-field" value="meta" checked <?php echo ! $is_pro ? 'disabled' : ''; ?> />
+									<span><strong><?php echo esc_html__( 'Custom Fields & Serialized Meta', 'post-export-import-with-media' ); ?></strong></span>
+								</label>
+							</div>
+
+							<div style="font-size: 12.5px; font-weight: 600; color: #334155; margin-top: 14px; margin-bottom: 8px;">
+								<?php echo esc_html__( 'Post Types:', 'post-export-import-with-media' ); ?>
+							</div>
+							<div style="display: flex; gap: 20px; flex-wrap: wrap;">
+								<label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #334155; cursor: pointer;">
+									<input type="checkbox" class="peiwm-fr-type" value="post" checked <?php echo ! $is_pro ? 'disabled' : ''; ?> />
+									<span><?php echo esc_html__( 'Posts', 'post-export-import-with-media' ); ?></span>
+								</label>
+								<label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #334155; cursor: pointer;">
+									<input type="checkbox" class="peiwm-fr-type" value="page" checked <?php echo ! $is_pro ? 'disabled' : ''; ?> />
+									<span><?php echo esc_html__( 'Pages', 'post-export-import-with-media' ); ?></span>
+								</label>
+							</div>
+						</div>
+
+						<!-- Action Buttons -->
+						<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+							<button type="button" id="peiwm-fr-preview-btn" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; font-weight: 600;" <?php echo ! $is_pro ? 'disabled' : ''; ?>>
+								<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="11" cy="11" r="8"></circle>
+									<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+								</svg>
+								<?php echo esc_html__( 'Preview Matches (Dry Run)', 'post-export-import-with-media' ); ?>
+							</button>
+
+							<button type="button" id="peiwm-fr-execute-btn" class="btn btn-secondary" style="display: none; align-items: center; gap: 6px; padding: 8px 18px; font-weight: 600; background: #dc2626; color: #fff; border-color: #dc2626;" <?php echo ! $is_pro ? 'disabled' : ''; ?>>
+								<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M21 2v6h-6"></path>
+									<path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+									<path d="M3 22v-6h6"></path>
+									<path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+								</svg>
+								<?php echo esc_html__( 'Execute Replacement (All)', 'post-export-import-with-media' ); ?>
+							</button>
+
+							<button type="button" id="peiwm-fr-execute-selected-btn" class="btn btn-secondary" style="display: none; align-items: center; gap: 6px; padding: 8px 18px; font-weight: 600; background: #ea580c; color: #fff; border-color: #ea580c;" <?php echo ! $is_pro ? 'disabled' : ''; ?>>
+								<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M21 2v6h-6"></path>
+									<path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+									<path d="M3 22v-6h6"></path>
+									<path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+								</svg>
+								<?php echo esc_html__( 'Execute Replacement (Selected: ', 'post-export-import-with-media' ); ?><span id="peiwm-fr-selected-count">0</span>)
+							</button>
+						</div>
+
+						<!-- Progress Bar / Spinner -->
+						<div id="peiwm-fr-progress" style="display: none; margin-top: 18px; padding: 14px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<div style="display: flex; align-items: center; gap: 10px;">
+								<div class="peiwm-loading-spinner" style="width: 20px; height: 20px;"></div>
+								<span id="peiwm-fr-progress-text" style="font-size: 13px; font-weight: 600; color: #334155;">
+									<?php echo esc_html__( 'Scanning fields for matches...', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+
+						<!-- Results Area -->
+						<div id="peiwm-fr-results" style="display: none; margin-top: 24px;">
+							<div id="peiwm-fr-summary" style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+								<div>
+									<strong id="peiwm-fr-summary-title" style="font-size: 14px; color: #1e40af;"></strong>
+									<span id="peiwm-fr-summary-desc" style="display: block; font-size: 12px; color: #2563eb; margin-top: 2px;">
+										<?php echo esc_html__( 'Dry-run preview mode: No modifications have been made to your database.', 'post-export-import-with-media' ); ?>
+									</span>
+								</div>
+							</div>
+
+							<!-- Table -->
+							<div class="peiwm-drag-scroll-wrap" style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff;">
+								<table class="widefat fixed striped peiwm-table peiwm-fr-table" id="peiwm-fr-table">
+									<thead>
+										<tr>
+											<th class="peiwm-col-cb"><input type="checkbox" id="peiwm-fr-select-all" /></th>
+											<th class="peiwm-col-title"><?php echo esc_html__( 'Post / Page', 'post-export-import-with-media' ); ?></th>
+											<th class="peiwm-col-type"><?php echo esc_html__( 'Type', 'post-export-import-with-media' ); ?></th>
+											<th class="peiwm-col-matches" style="text-align: center;"><?php echo esc_html__( 'Matches', 'post-export-import-with-media' ); ?></th>
+											<th class="peiwm-col-snippets"><?php echo esc_html__( 'Preview (Before → After)', 'post-export-import-with-media' ); ?></th>
+											<th class="peiwm-col-actions" style="text-align: right;"><?php echo esc_html__( 'Actions', 'post-export-import-with-media' ); ?></th>
+										</tr>
+									</thead>
+									<tbody id="peiwm-fr-table-body">
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- TAB 3: COMPARE POSTS -->
+			<div class="peiwm-pt-tab-pane" id="peiwm-pane-post-compare" style="display: none;">
+				<div class="peiwm-section" style="margin-bottom: 24px;">
+					<div class="panel-head">
+						<div class="panel-title">
+							<div class="panel-icon posts" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
+								<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M16 3h5v5"></path>
+									<path d="M4 20L21 3"></path>
+									<path d="M21 16v5h-5"></path>
+									<path d="M15 15l6 6"></path>
+									<path d="M4 4l5 5"></path>
+								</svg>
+							</div>
+							<div>
+								<h3 style="margin: 0; font-size: 17px; font-weight: 600; color: #1e293b;">
+									<?php echo esc_html__( 'Post Compare & Side-by-Side Inspector', 'post-export-import-with-media' ); ?>
+								</h3>
+								<span style="font-size: 13px; color: #64748b;">
+									<?php echo esc_html__( 'Inspect metadata, taxonomies, content differences, and custom fields side-by-side between two posts.', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<div style="padding: 20px 24px;">
+						<!-- Post Selectors Grid -->
+						<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 20px;">
+							<!-- Post A Selection -->
+							<div style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; position: relative;">
+								<label style="display: block; font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 8px;">
+									🅰️ <?php echo esc_html__( 'Post A (Base Post):', 'post-export-import-with-media' ); ?>
+									<span style="color: #ef4444;">*</span>
+								</label>
+								<div style="position: relative;">
+									<input type="text" id="peiwm-pc-search-a" placeholder="<?php esc_attr_e( 'Search by post title or enter ID...', 'post-export-import-with-media' ); ?>" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; box-sizing: border-box;" autocomplete="off" />
+									<input type="hidden" id="peiwm-pc-id-a" value="" />
+									<div id="peiwm-pc-dropdown-a" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 100; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); max-height: 200px; overflow-y: auto; margin-top: 4px;"></div>
+								</div>
+								<div id="peiwm-pc-selected-a" style="display: none; margin-top: 8px; padding: 6px 10px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 12.5px; color: #1e40af; align-items: center; justify-content: space-between;">
+									<span id="peiwm-pc-label-a"></span>
+									<button type="button" id="peiwm-pc-clear-a" class="button-link" style="color: #ef4444; font-size: 12px; text-decoration: none; cursor: pointer;">✕</button>
+								</div>
+							</div>
+
+							<!-- Post B Selection -->
+							<div style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; position: relative;">
+								<label style="display: block; font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 8px;">
+									🅱️ <?php echo esc_html__( 'Post B (Comparison Post):', 'post-export-import-with-media' ); ?>
+									<span style="color: #ef4444;">*</span>
+								</label>
+								<div style="position: relative;">
+									<input type="text" id="peiwm-pc-search-b" placeholder="<?php esc_attr_e( 'Search by post title or enter ID...', 'post-export-import-with-media' ); ?>" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; box-sizing: border-box;" autocomplete="off" />
+									<input type="hidden" id="peiwm-pc-id-b" value="" />
+									<div id="peiwm-pc-dropdown-b" style="display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 100; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); max-height: 200px; overflow-y: auto; margin-top: 4px;"></div>
+								</div>
+								<div id="peiwm-pc-selected-b" style="display: none; margin-top: 8px; padding: 6px 10px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 12.5px; color: #1e40af; align-items: center; justify-content: space-between;">
+									<span id="peiwm-pc-label-b"></span>
+									<button type="button" id="peiwm-pc-clear-b" class="button-link" style="color: #ef4444; font-size: 12px; text-decoration: none; cursor: pointer;">✕</button>
+								</div>
+							</div>
+						</div>
+
+						<!-- Action Button -->
+						<div>
+							<button type="button" id="peiwm-pc-btn" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 20px; font-weight: 600;">
+								⚖️ <?php echo esc_html__( 'Compare Posts Side-by-Side', 'post-export-import-with-media' ); ?>
+							</button>
+						</div>
+
+						<!-- Spinner / Loading -->
+						<div id="peiwm-pc-progress" style="display: none; margin-top: 18px; padding: 14px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<div style="display: flex; align-items: center; gap: 10px;">
+								<div class="peiwm-loading-spinner" style="width: 20px; height: 20px;"></div>
+								<span style="font-size: 13px; font-weight: 600; color: #334155;">
+									<?php echo esc_html__( 'Fetching and comparing post metadata...', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+
+						<!-- Comparison Results Container -->
+						<div id="peiwm-pc-results" style="display: none; margin-top: 24px;">
+							<!-- Metadata Table -->
+							<div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 24px;">
+								<div style="background: #f1f5f9; padding: 12px 18px; font-weight: 700; font-size: 14px; color: #1e293b; border-bottom: 1px solid #e2e8f0;">
+									📊 <?php echo esc_html__( 'Core Attributes & Taxonomy Comparison', 'post-export-import-with-media' ); ?>
+								</div>
+								<table class="widefat fixed striped peiwm-table peiwm-pc-table" id="peiwm-pc-table" style="border: none;">
+									<thead>
+										<tr>
+											<th class="peiwm-col-field" style="width: 20%; font-weight: 600;"><?php echo esc_html__( 'Field', 'post-export-import-with-media' ); ?></th>
+											<th class="peiwm-col-post-a" style="width: 40%; font-weight: 600;" id="peiwm-pc-th-a"><?php echo esc_html__( 'Post A', 'post-export-import-with-media' ); ?></th>
+											<th class="peiwm-col-post-b" style="width: 40%; font-weight: 600;" id="peiwm-pc-th-b"><?php echo esc_html__( 'Post B', 'post-export-import-with-media' ); ?></th>
+										</tr>
+									</thead>
+									<tbody id="peiwm-pc-table-body">
+									</tbody>
+								</table>
+							</div>
+
+							<!-- Content Diff Section -->
+							<div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 24px; background: #fff;">
+								<div style="background: #f1f5f9; padding: 12px 18px; font-weight: 700; font-size: 14px; color: #1e293b; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
+									<span>📝 <?php echo esc_html__( 'Content Diff', 'post-export-import-with-media' ); ?></span>
+									
+								</div>
+								<div class="<?php echo ! $is_pro ? 'peiwm-locked-section' : ''; ?>" style="position: relative; padding: 18px; min-height: 80px;">
+									<?php if ( ! $is_pro ) : ?>
+										<button type="button" class="peiwm-pro-upgrade-overlay peiwm-open-premium-modal">
+											<span class="peiwm-pro-upgrade-badge">🔒 <?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span>
+										</button>
+									<?php endif; ?>
+									<div id="peiwm-pc-content-diff-output">
+										<p style="color: #64748b; margin: 0; font-size: 13px;">
+											<?php echo esc_html__( 'Side-by-side visual content diff comparing line-by-line additions and deletions across post revisions.', 'post-export-import-with-media' ); ?>
+										</p>
+									</div>
+								</div>
+							</div>
+
+							<!-- Custom Fields / Post Meta Comparison -->
+							<div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #fff;">
+								<div style="background: #f1f5f9; padding: 12px 18px; font-weight: 700; font-size: 14px; color: #1e293b; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
+									<span>🧩 <?php echo esc_html__( 'Custom Fields & ACF Meta Comparison', 'post-export-import-with-media' ); ?></span>
+									
+								</div>
+								<div class="<?php echo ! $is_pro ? 'peiwm-locked-section' : ''; ?>" style="position: relative; padding: 18px; min-height: 80px;">
+									<?php if ( ! $is_pro ) : ?>
+										<button type="button" class="peiwm-pro-upgrade-overlay peiwm-open-premium-modal">
+											<span class="peiwm-pro-upgrade-badge">🔒 <?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span>
+										</button>
+									<?php endif; ?>
+									<div id="peiwm-pc-meta-diff-output">
+										<p style="color: #64748b; margin: 0; font-size: 13px;">
+											<?php echo esc_html__( 'Inspect and compare all custom fields, ACF metadata, and serialized values side-by-side with color-coded status badges.', 'post-export-import-with-media' ); ?>
+										</p>
+									</div>
+								</div>
+							</div>
+
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- TAB 4: HEALTH & CLEANUP -->
+			<div class="peiwm-pt-tab-pane" id="peiwm-pane-post-cleanup" style="display: none;">
+				<div class="peiwm-section" style="margin-bottom: 24px;">
+					<div class="panel-head">
+						<div class="panel-title">
+							<div class="panel-icon posts" style="background: rgba(245, 158, 11, 0.1); color: #d97706;">
+								<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+								</svg>
+							</div>
+							<div>
+								<h3 style="margin: 0; font-size: 17px; font-weight: 600; color: #1e293b;">
+									<?php echo esc_html__( 'Post Cleanup Scanner & Health Check', 'post-export-import-with-media' ); ?>
+								</h3>
+								<span style="font-size: 13px; color: #64748b;">
+									<?php echo esc_html__( 'Scan and diagnose post health issues post-migration: unassigned categories, missing tags, broken images, and duplicate slugs.', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<div style="padding: 20px 24px;">
+						<!-- Scan Scope Selection & Action -->
+						<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; padding: 14px 18px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+							<div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+								<span style="font-size: 13px; font-weight: 600; color: #334155;">
+									<?php echo esc_html__( 'Scan Scope:', 'post-export-import-with-media' ); ?>
+								</span>
+								<label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #334155; cursor: pointer;">
+									<input type="checkbox" class="peiwm-cleanup-scope" value="post" checked />
+									<span><?php echo esc_html__( 'Posts', 'post-export-import-with-media' ); ?></span>
+								</label>
+								<label style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #334155; cursor: pointer;">
+									<input type="checkbox" class="peiwm-cleanup-scope" value="page" checked />
+									<span><?php echo esc_html__( 'Pages', 'post-export-import-with-media' ); ?></span>
+								</label>
+							</div>
+
+							<button type="button" id="peiwm-cleanup-scan-btn" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 20px; font-weight: 600;">
+								<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="11" cy="11" r="8"></circle>
+									<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+								</svg>
+								<?php echo esc_html__( 'Run Health Scan', 'post-export-import-with-media' ); ?>
+							</button>
+						</div>
+
+						<!-- Progress Spinner -->
+						<div id="peiwm-cleanup-progress" style="display: none; margin-bottom: 20px; padding: 14px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<div style="display: flex; align-items: center; gap: 10px;">
+								<div class="peiwm-loading-spinner" style="width: 20px; height: 20px;"></div>
+								<span style="font-size: 13px; font-weight: 600; color: #334155;">
+									<?php echo esc_html__( 'Scanning posts and pages for content health issues...', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+
+						<!-- Metric Cards Grid -->
+						<div id="peiwm-cleanup-metrics" style="display: none; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px;">
+							<div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; border-left: 4px solid #f59e0b;">
+								<span style="display: block; font-size: 11.5px; font-weight: 600; color: #64748b; text-transform: uppercase;">
+									<?php echo esc_html__( 'Total Posts Scanned', 'post-export-import-with-media' ); ?>
+								</span>
+								<span id="peiwm-metric-total-posts" style="font-size: 22px; font-weight: 700; color: #1e293b;">0</span>
+							</div>
+							<div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; border-left: 4px solid #ef4444;">
+								<span style="display: block; font-size: 11.5px; font-weight: 600; color: #64748b; text-transform: uppercase;">
+									<?php echo esc_html__( 'Missing Categories', 'post-export-import-with-media' ); ?>
+								</span>
+								<span id="peiwm-metric-missing-cats" style="font-size: 22px; font-weight: 700; color: #ef4444;">0</span>
+							</div>
+							<div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; border-left: 4px solid #3b82f6;">
+								<span style="display: block; font-size: 11.5px; font-weight: 600; color: #64748b; text-transform: uppercase;">
+									<?php echo esc_html__( 'Missing Tags', 'post-export-import-with-media' ); ?>
+								</span>
+								<span id="peiwm-metric-missing-tags" style="font-size: 22px; font-weight: 700; color: #3b82f6;">0</span>
+							</div>
+							<div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; border-left: 4px solid #8b5cf6;">
+								<span style="display: block; font-size: 11.5px; font-weight: 600; color: #64748b; text-transform: uppercase;">
+									<?php echo esc_html__( 'Duplicate Slugs', 'post-export-import-with-media' ); ?>
+								</span>
+								<span id="peiwm-metric-dup-slugs" style="font-size: 22px; font-weight: 700; color: #8b5cf6;">0</span>
+							</div>
+							<div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; border-left: 4px solid #ec4899;">
+								<span style="display: block; font-size: 11.5px; font-weight: 600; color: #64748b; text-transform: uppercase;">
+									<?php echo esc_html__( 'Broken Images', 'post-export-import-with-media' ); ?>
+								</span>
+								<span id="peiwm-metric-broken-imgs" style="font-size: 22px; font-weight: 700; color: #ec4899;">0</span>
+							</div>
+						</div>
+
+						<!-- Pro Quick-Fix Toolbar -->
+						<div id="peiwm-cleanup-fix-bar" style="display: none; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; padding: 14px 18px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;">
+							<div style="display: flex; align-items: center; gap: 8px;">
+								<span style="font-size: 16px;">⚡</span>
+								<div>
+									<strong style="font-size: 13.5px; color: #92400e;"><?php echo esc_html__( 'Automated One-Click Cleanup Tools', 'post-export-import-with-media' ); ?></strong>
+									<span style="display: block; font-size: 12px; color: #b45309;"><?php echo esc_html__( 'Bulk resolve detected issues across all matching posts in seconds.', 'post-export-import-with-media' ); ?></span>
+								</div>
+							</div>
+							<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+								<?php if ( $is_pro ) : ?>
+									<div class="peiwm-btn-group" style="display: inline-flex; align-items: stretch;">
+										<button type="button" id="peiwm-cleanup-fix-cats-btn" class="button" style="background: #fff; border-color: #d97706; color: #b45309; font-weight: 600; font-size: 12px; border-top-right-radius: 0; border-bottom-right-radius: 0;">
+											📁 <?php echo esc_html__( 'Assign Default Category', 'post-export-import-with-media' ); ?>
+										</button>
+										<button type="button" id="peiwm-cleanup-choose-cat-btn" class="button" title="<?php esc_attr_e( 'Choose category from list...', 'post-export-import-with-media' ); ?>" style="background: #fff; border-color: #d97706; color: #b45309; font-weight: 700; font-size: 15px; border-left: none; border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 0 9px; line-height: 1;">
+											&#8942;
+										</button>
+									</div>
+									<div class="peiwm-btn-group" style="display: inline-flex; align-items: stretch;">
+										<button type="button" id="peiwm-cleanup-fix-tags-btn" class="button" style="background: #fff; border-color: #3b82f6; color: #1d4ed8; font-weight: 600; font-size: 12px; border-top-right-radius: 0; border-bottom-right-radius: 0;">
+											🏷️ <?php echo esc_html__( 'Assign Tags', 'post-export-import-with-media' ); ?>
+										</button>
+										<button type="button" id="peiwm-cleanup-choose-tag-btn" class="button" title="<?php esc_attr_e( 'Choose tags from list...', 'post-export-import-with-media' ); ?>" style="background: #fff; border-color: #3b82f6; color: #1d4ed8; font-weight: 700; font-size: 15px; border-left: none; border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 0 9px; line-height: 1;">
+											&#8942;
+										</button>
+									</div>
+									<button type="button" id="peiwm-cleanup-fix-slugs-btn" class="button" style="background: #fff; border-color: #d97706; color: #b45309; font-weight: 600; font-size: 12px;">
+										📑 <?php echo esc_html__( 'Deduplicate Slugs', 'post-export-import-with-media' ); ?>
+									</button>
+									<button type="button" id="peiwm-cleanup-fix-imgs-btn" class="button" style="background: #fff; border-color: #d97706; color: #b45309; font-weight: 600; font-size: 12px;">
+										🖼️ <?php echo esc_html__( 'Clean Broken Images', 'post-export-import-with-media' ); ?>
+									</button>
+								<?php else : ?>
+									<div class="peiwm-btn-group" style="display: inline-flex; align-items: stretch;">
+										<button type="button" id="peiwm-cleanup-fix-cats-btn" class="button peiwm-open-premium-modal peiwm-locked-btn" style="background: #fff; border-color: #d97706; color: #b45309; font-weight: 600; font-size: 12px; border-top-right-radius: 0; border-bottom-right-radius: 0;">
+											📁 <?php echo esc_html__( 'Assign Default Category', 'post-export-import-with-media' ); ?>
+										</button>
+										<button type="button" id="peiwm-cleanup-choose-cat-btn" class="button peiwm-open-premium-modal peiwm-locked-btn" title="<?php esc_attr_e( 'Choose category from list...', 'post-export-import-with-media' ); ?>" style="background: #fff; border-color: #d97706; color: #b45309; font-weight: 700; font-size: 15px; border-left: none; border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 0 9px; line-height: 1;">
+											&#8942;
+										</button>
+									</div>
+									<div class="peiwm-btn-group" style="display: inline-flex; align-items: stretch;">
+										<button type="button" id="peiwm-cleanup-fix-tags-btn" class="button peiwm-open-premium-modal peiwm-locked-btn" style="background: #fff; border-color: #3b82f6; color: #1d4ed8; font-weight: 600; font-size: 12px; border-top-right-radius: 0; border-bottom-right-radius: 0;">
+											🏷️ <?php echo esc_html__( 'Assign Tags', 'post-export-import-with-media' ); ?>
+										</button>
+										<button type="button" id="peiwm-cleanup-choose-tag-btn" class="button peiwm-open-premium-modal peiwm-locked-btn" title="<?php esc_attr_e( 'Choose tags from list...', 'post-export-import-with-media' ); ?>" style="background: #fff; border-color: #3b82f6; color: #1d4ed8; font-weight: 700; font-size: 15px; border-left: none; border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 0 9px; line-height: 1;">
+											&#8942;
+										</button>
+									</div>
+									<button type="button" id="peiwm-cleanup-fix-slugs-btn" class="button peiwm-open-premium-modal peiwm-locked-btn" style="background: #fff; border-color: #d97706; color: #b45309; font-weight: 600; font-size: 12px;">
+										📑 <?php echo esc_html__( 'Deduplicate Slugs', 'post-export-import-with-media' ); ?>
+									</button>
+									<button type="button" id="peiwm-cleanup-fix-imgs-btn" class="button peiwm-open-premium-modal peiwm-locked-btn" style="background: #fff; border-color: #d97706; color: #b45309; font-weight: 600; font-size: 12px;">
+										🖼️ <?php echo esc_html__( 'Clean Broken Images', 'post-export-import-with-media' ); ?>
+									</button>
+								<?php endif; ?>
+							</div>
+						</div>
+
+						<!-- Results Area -->
+						<div id="peiwm-cleanup-results" style="display: none;">
+							<!-- Filter Toolbar -->
+							<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+								<div style="display: flex; gap: 6px; flex-wrap: wrap;">
+									<button type="button" class="peiwm-cleanup-filter-btn active button" data-filter="all" style="font-size: 12px; font-weight: 600;">
+										<?php echo esc_html__( 'All Issues', 'post-export-import-with-media' ); ?>
+									</button>
+									<button type="button" class="peiwm-cleanup-filter-btn button" data-filter="missing_category" style="font-size: 12px;">
+										<?php echo esc_html__( 'Missing Categories', 'post-export-import-with-media' ); ?>
+									</button>
+									<button type="button" class="peiwm-cleanup-filter-btn button" data-filter="missing_tag" style="font-size: 12px;">
+										<?php echo esc_html__( 'Missing Tags', 'post-export-import-with-media' ); ?>
+									</button>
+									<button type="button" class="peiwm-cleanup-filter-btn button" data-filter="duplicate_slug" style="font-size: 12px;">
+										<?php echo esc_html__( 'Duplicate Slugs', 'post-export-import-with-media' ); ?>
+									</button>
+									<button type="button" class="peiwm-cleanup-filter-btn button" data-filter="broken_image" style="font-size: 12px;">
+										<?php echo esc_html__( 'Broken Images', 'post-export-import-with-media' ); ?>
+									</button>
+								</div>
+								<input type="text" id="peiwm-cleanup-search-filter" placeholder="<?php esc_attr_e( 'Filter by title or ID...', 'post-export-import-with-media' ); ?>" style="padding: 4px 10px; font-size: 12px; border: 1px solid #d1d5db; border-radius: 4px; width: 220px;" />
+							</div>
+
+							<!-- Diagnostic Table -->
+							<div class="peiwm-drag-scroll-wrap" style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff;">
+								<table class="widefat fixed striped peiwm-table peiwm-cleanup-table" id="peiwm-cleanup-table">
+									<thead>
+										<tr>
+											<th class="peiwm-col-cb"><input type="checkbox" id="peiwm-cleanup-select-all" /></th>
+											<th class="peiwm-col-title"><?php echo esc_html__( 'Post / Page', 'post-export-import-with-media' ); ?></th>
+											<th class="peiwm-col-type"><?php echo esc_html__( 'Type', 'post-export-import-with-media' ); ?></th>
+											<th class="peiwm-col-issues"><?php echo esc_html__( 'Issues Detected', 'post-export-import-with-media' ); ?></th>
+											<th class="peiwm-col-actions" style="text-align: right;"><?php echo esc_html__( 'Actions', 'post-export-import-with-media' ); ?></th>
+										</tr>
+									</thead>
+									<tbody id="peiwm-cleanup-table-body">
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- TAB 5: MISSING MEDIA (PRO) -->
+			<div class="peiwm-pt-tab-pane" id="peiwm-pane-missing-media" style="display: none;">
+				<div class="peiwm-section" style="margin-bottom: 24px;">
+					<div class="panel-head">
+						<div class="panel-title">
+							<div class="panel-icon posts" style="background: rgba(168, 85, 247, 0.1); color: #9333ea;">
+								<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+									<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+									<circle cx="8.5" cy="8.5" r="1.5"/>
+									<polyline points="21 15 16 10 5 21"/>
+								</svg>
+							</div>
+							<div>
+								<h3 style="margin: 0; font-size: 17px; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+									<?php echo esc_html__( 'Missing Featured Image Finder', 'post-export-import-with-media' ); ?>
+									
+								</h3>
+								<span style="font-size: 13px; color: #64748b;">
+									<?php echo esc_html__( 'Scan posts lacking a featured image and assign images directly from your Media Library with 1 click.', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="<?php echo ! $is_pro ? 'peiwm-locked-section' : ''; ?>" style="position: relative; padding: 20px 24px;">
+						<?php if ( ! $is_pro ) : ?>
+							<button type="button" class="peiwm-pro-upgrade-overlay peiwm-open-premium-modal">
+								<span class="peiwm-pro-upgrade-badge">🔒 <?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span>
+							</button>
+						<?php endif; ?>
+
+						<!-- Controls Bar -->
+						<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; padding: 14px 18px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+							<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+								<label for="peiwm-mf-post-type" style="font-size: 13px; font-weight: 600; color: #334155;">
+									<?php echo esc_html__( 'Post Type:', 'post-export-import-with-media' ); ?>
+								</label>
+								<select id="peiwm-mf-post-type" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 13px; background: #fff;">
+									<option value="all"><?php echo esc_html__( 'All Public Post Types', 'post-export-import-with-media' ); ?></option>
+									<option value="post" selected><?php echo esc_html__( 'Posts', 'post-export-import-with-media' ); ?></option>
+									<option value="page"><?php echo esc_html__( 'Pages', 'post-export-import-with-media' ); ?></option>
+								</select>
+							</div>
+
+							<button type="button" id="peiwm-mf-scan-btn" class="btn btn-primary <?php echo ! $is_pro ? 'peiwm-locked-btn peiwm-open-premium-modal' : ''; ?>" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 20px; font-weight: 600;">
+								<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="11" cy="11" r="8"></circle>
+									<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+								</svg>
+								<?php echo esc_html__( 'Scan Missing Images', 'post-export-import-with-media' ); ?>
+							</button>
+						</div>
+
+						<!-- Progress Spinner -->
+						<div id="peiwm-mf-progress" style="display: none; margin-bottom: 20px; padding: 14px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<div style="display: flex; align-items: center; gap: 10px;">
+								<div class="peiwm-loading-spinner" style="width: 20px; height: 20px;"></div>
+								<span style="font-size: 13px; font-weight: 600; color: #334155;">
+									<?php echo esc_html__( 'Scanning posts for missing featured images...', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+
+						<!-- Metric Box -->
+						<div id="peiwm-mf-metric-box" style="display: none; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; border-left: 4px solid #9333ea; margin-bottom: 20px;">
+							<span style="display: block; font-size: 11.5px; font-weight: 600; color: #64748b; text-transform: uppercase;">
+								<?php echo esc_html__( 'Posts Lacking Featured Image', 'post-export-import-with-media' ); ?>
+							</span>
+							<span id="peiwm-mf-metric-count" style="font-size: 22px; font-weight: 700; color: #1e293b;">0</span>
+						</div>
+
+						<!-- Results Table Container -->
+						<div id="peiwm-mf-results" class="peiwm-drag-scroll-wrap" style="display: none; border: 1px solid #e2e8f0; border-radius: 8px; overflow-x: auto; background: #fff;">
+							<table class="widefat fixed striped peiwm-table peiwm-mf-table" id="peiwm-mf-table">
+								<thead>
+									<tr>
+										<th class="peiwm-col-id"><?php echo esc_html__( 'ID', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-title"><?php echo esc_html__( 'Title', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-type"><?php echo esc_html__( 'Type', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-date"><?php echo esc_html__( 'Date', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-status"><?php echo esc_html__( 'Status', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-thumb"><?php echo esc_html__( 'Thumbnail Preview', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-actions" style="text-align: right;"><?php echo esc_html__( 'Action', 'post-export-import-with-media' ); ?></th>
+									</tr>
+								</thead>
+								<tbody id="peiwm-mf-table-body">
+								</tbody>
+							</table>
+						</div>
+
+						<div id="peiwm-mf-empty" style="display: none; padding: 32px; text-align: center; color: #10b981; font-weight: 600;">
+							🎉 <?php echo esc_html__( 'All scanned posts have a featured image!', 'post-export-import-with-media' ); ?>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- TAB 6: DUPLICATES -->
+			<div class="peiwm-pt-tab-pane" id="peiwm-pane-duplicate-detector" style="display: none;">
+				<div class="peiwm-section" style="margin-bottom: 24px;">
+					<div class="panel-head">
+						<div class="panel-title">
+							<div class="panel-icon posts" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
+								<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+									<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+									<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+								</svg>
+							</div>
+							<div>
+								<h3 style="margin: 0; font-size: 17px; font-weight: 600; color: #1e293b;">
+									<?php echo esc_html__( 'Duplicate Post Detector', 'post-export-import-with-media' ); ?>
+								</h3>
+								<span style="font-size: 13px; color: #64748b;">
+									<?php echo esc_html__( 'Detect exact duplicates by Title, Slug, or Content hash. Clean up duplicate clusters in 1 click.', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<div style="padding: 20px 24px;">
+						<!-- Filter & Scope Bar -->
+						<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; padding: 14px 18px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+							<div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+								<div style="display: flex; align-items: center; gap: 8px;">
+									<label for="peiwm-dd-criteria" style="font-size: 13px; font-weight: 600; color: #334155;">
+										<?php echo esc_html__( 'Match Criteria:', 'post-export-import-with-media' ); ?>
+									</label>
+									<select id="peiwm-dd-criteria" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 13px; background: #fff;">
+										<option value="title" selected><?php echo esc_html__( 'Exact Same Title', 'post-export-import-with-media' ); ?></option>
+										<option value="slug"><?php echo esc_html__( 'Exact Same Slug', 'post-export-import-with-media' ); ?></option>
+										<option value="content"><?php echo esc_html__( 'Exact Same Content Hash', 'post-export-import-with-media' ); ?></option>
+										<option value="all"><?php echo esc_html__( 'All Criteria (Combined)', 'post-export-import-with-media' ); ?></option>
+									</select>
+								</div>
+
+								<div style="display: flex; align-items: center; gap: 8px;">
+									<label for="peiwm-dd-post-type" style="font-size: 13px; font-weight: 600; color: #334155;">
+										<?php echo esc_html__( 'Post Type:', 'post-export-import-with-media' ); ?>
+									</label>
+									<select id="peiwm-dd-post-type" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 13px; background: #fff;">
+										<option value="post" selected><?php echo esc_html__( 'Posts', 'post-export-import-with-media' ); ?></option>
+										<option value="page"><?php echo esc_html__( 'Pages', 'post-export-import-with-media' ); ?></option>
+									</select>
+								</div>
+							</div>
+
+							<button type="button" id="peiwm-dd-scan-btn" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 20px; font-weight: 600;">
+								<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="11" cy="11" r="8"></circle>
+									<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+								</svg>
+								<?php echo esc_html__( 'Scan Duplicates', 'post-export-import-with-media' ); ?>
+							</button>
+						</div>
+
+						<!-- Progress Spinner -->
+						<div id="peiwm-dd-progress" style="display: none; margin-bottom: 20px; padding: 14px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<div style="display: flex; align-items: center; gap: 10px;">
+								<div class="peiwm-loading-spinner" style="width: 20px; height: 20px;"></div>
+								<span style="font-size: 13px; font-weight: 600; color: #334155;">
+									<?php echo esc_html__( 'Searching for duplicate posts...', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+
+						<!-- Metrics Grid -->
+						<div id="peiwm-dd-metrics" style="display: none; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px;">
+							<div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; border-left: 4px solid #ef4444;">
+								<span style="display: block; font-size: 11.5px; font-weight: 600; color: #64748b; text-transform: uppercase;">
+									<?php echo esc_html__( 'Duplicate Clusters', 'post-export-import-with-media' ); ?>
+								</span>
+								<span id="peiwm-metric-dd-clusters" style="font-size: 22px; font-weight: 700; color: #1e293b;">0</span>
+							</div>
+							<div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; border-left: 4px solid #f97316;">
+								<span style="display: block; font-size: 11.5px; font-weight: 600; color: #64748b; text-transform: uppercase;">
+									<?php echo esc_html__( 'Redundant Posts', 'post-export-import-with-media' ); ?>
+								</span>
+								<span id="peiwm-metric-dd-redundant" style="font-size: 22px; font-weight: 700; color: #1e293b;">0</span>
+							</div>
+						</div>
+
+						<!-- PRO Actions Bar -->
+						<div id="peiwm-dd-pro-toolbar" style="display: none; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; padding: 12px 16px; background: #fff; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<span style="font-size: 13px; font-weight: 600; color: #334155;">
+								<?php echo esc_html__( 'Bulk Cluster Resolution:', 'post-export-import-with-media' ); ?>
+							</span>
+							<div style="display: flex; gap: 10px; flex-wrap: wrap;">
+								<button type="button" id="peiwm-dd-trash-keep-oldest-btn" class="btn btn-secondary <?php echo ! $is_pro ? 'peiwm-locked-btn peiwm-open-premium-modal' : ''; ?>" style="font-size: 12.5px; padding: 6px 14px; font-weight: 600;">
+									🗑️ <?php echo esc_html__( 'Keep Oldest & Trash Rest', 'post-export-import-with-media' ); ?>
+									<?php if ( ! $is_pro ) : ?><span class="peiwm-pro-lock">🔒 PRO</span><?php endif; ?>
+								</button>
+								<button type="button" id="peiwm-dd-trash-keep-newest-btn" class="btn btn-secondary <?php echo ! $is_pro ? 'peiwm-locked-btn peiwm-open-premium-modal' : ''; ?>" style="font-size: 12.5px; padding: 6px 14px; font-weight: 600;">
+									🗑️ <?php echo esc_html__( 'Keep Newest & Trash Rest', 'post-export-import-with-media' ); ?>
+									<?php if ( ! $is_pro ) : ?><span class="peiwm-pro-lock">🔒 PRO</span><?php endif; ?>
+								</button>
+							</div>
+						</div>
+
+						<!-- Clusters List Container -->
+						<div id="peiwm-dd-clusters-container"></div>
+
+						<div id="peiwm-dd-empty" style="display: none; padding: 32px; text-align: center; color: #10b981; font-weight: 600;">
+							🎉 <?php echo esc_html__( 'No duplicate posts detected for the selected criteria!', 'post-export-import-with-media' ); ?>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- TAB 7: ORPHANED POSTS (PRO) -->
+			<div class="peiwm-pt-tab-pane" id="peiwm-pane-orphaned-posts" style="display: none;">
+				<div class="peiwm-section" style="margin-bottom: 24px;">
+					<div class="panel-head">
+						<div class="panel-title">
+							<div class="panel-icon posts" style="background: rgba(14, 165, 233, 0.1); color: #0284c7;">
+								<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+									<circle cx="12" cy="10" r="3"/>
+								</svg>
+							</div>
+							<div>
+								<h3 style="margin: 0; font-size: 17px; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+									<?php echo esc_html__( 'Orphaned Post Finder', 'post-export-import-with-media' ); ?>
+									
+								</h3>
+								<span style="font-size: 13px; color: #64748b;">
+									<?php echo esc_html__( 'Discover posts disconnected from categories, with broken parent references, or from deleted authors.', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="<?php echo ! $is_pro ? 'peiwm-locked-section' : ''; ?>" style="position: relative; padding: 20px 24px;">
+						<?php if ( ! $is_pro ) : ?>
+							<button type="button" class="peiwm-pro-upgrade-overlay peiwm-open-premium-modal">
+								<span class="peiwm-pro-upgrade-badge">🔒 <?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span>
+							</button>
+						<?php endif; ?>
+
+						<!-- Controls Bar -->
+						<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; padding: 14px 18px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+							<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+								<label for="peiwm-orphaned-post-type" style="font-size: 13px; font-weight: 600; color: #334155;">
+									<?php echo esc_html__( 'Post Type:', 'post-export-import-with-media' ); ?>
+								</label>
+								<select id="peiwm-orphaned-post-type" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #d1d5db; font-size: 13px; background: #fff;">
+									<option value="all" selected><?php echo esc_html__( 'All Public Types', 'post-export-import-with-media' ); ?></option>
+									<option value="post"><?php echo esc_html__( 'Posts', 'post-export-import-with-media' ); ?></option>
+									<option value="page"><?php echo esc_html__( 'Pages', 'post-export-import-with-media' ); ?></option>
+								</select>
+							</div>
+
+							<button type="button" id="peiwm-orphaned-scan-btn" class="btn btn-primary <?php echo ! $is_pro ? 'peiwm-locked-btn peiwm-open-premium-modal' : ''; ?>" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 20px; font-weight: 600;">
+								<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="11" cy="11" r="8"></circle>
+									<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+								</svg>
+								<?php echo esc_html__( 'Scan Orphaned Posts', 'post-export-import-with-media' ); ?>
+							</button>
+						</div>
+
+						<!-- Progress Spinner -->
+						<div id="peiwm-orphaned-progress" style="display: none; margin-bottom: 20px; padding: 14px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<div style="display: flex; align-items: center; gap: 10px;">
+								<div class="peiwm-loading-spinner" style="width: 20px; height: 20px;"></div>
+								<span style="font-size: 13px; font-weight: 600; color: #334155;">
+									<?php echo esc_html__( 'Scanning for orphaned posts...', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+
+						<!-- PRO Actions Toolbar -->
+						<div id="peiwm-orphaned-toolbar" style="display: none; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; padding: 12px 16px; background: #fff; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<span style="font-size: 13px; font-weight: 600; color: #334155;">
+								<?php echo esc_html__( 'Found Orphaned Posts:', 'post-export-import-with-media' ); ?> <span id="peiwm-orphaned-count-badge" style="font-weight: 700; color: #ef4444;">0</span>
+							</span>
+							<div style="display: flex; gap: 10px; flex-wrap: wrap;">
+								<button type="button" id="peiwm-orphaned-fix-parents-btn" class="btn btn-secondary" style="font-size: 12.5px; padding: 6px 14px; font-weight: 600;">
+									🔄 <?php echo esc_html__( 'Reset Broken Parents to None', 'post-export-import-with-media' ); ?>
+								</button>
+								<button type="button" id="peiwm-orphaned-trash-selected-btn" class="btn btn-secondary" style="font-size: 12.5px; padding: 6px 14px; font-weight: 600; color: #ef4444;">
+									🗑️ <?php echo esc_html__( 'Trash Selected Orphans', 'post-export-import-with-media' ); ?>
+								</button>
+							</div>
+						</div>
+
+						<!-- Results Table Container -->
+						<div id="peiwm-orphaned-results" class="peiwm-drag-scroll-wrap" style="display: none; border: 1px solid #e2e8f0; border-radius: 8px; overflow-x: auto; background: #fff;">
+							<table class="widefat fixed striped peiwm-table peiwm-orphaned-table" id="peiwm-orphaned-table">
+								<thead>
+									<tr>
+										<th class="peiwm-col-cb">
+											<input type="checkbox" id="peiwm-orphaned-select-all" />
+										</th>
+										<th class="peiwm-col-id"><?php echo esc_html__( 'ID', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-title"><?php echo esc_html__( 'Title', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-type"><?php echo esc_html__( 'Type', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-date"><?php echo esc_html__( 'Date', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-issues"><?php echo esc_html__( 'Detected Issues', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-actions" style="text-align: center;"><?php echo esc_html__( 'Actions', 'post-export-import-with-media' ); ?></th>
+									</tr>
+								</thead>
+								<tbody id="peiwm-orphaned-table-body">
+								</tbody>
+							</table>
+						</div>
+
+						<div id="peiwm-orphaned-empty" style="display: none; padding: 32px; text-align: center; color: #10b981; font-weight: 600;">
+							🎉 <?php echo esc_html__( 'No orphaned posts found! Your post hierarchy and taxonomy assignments are healthy.', 'post-export-import-with-media' ); ?>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- TAB 8: POST DIFF & REVISIONS (FREE) -->
+			<div class="peiwm-pt-tab-pane" id="peiwm-pane-post-diff" style="display: none;">
+				<div class="peiwm-section" style="margin-bottom: 24px;">
+					<div class="panel-head">
+						<div class="panel-title">
+							<div class="panel-icon posts" style="background: rgba(16, 185, 129, 0.1); color: #059669;">
+								<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="12" cy="12" r="10"></circle>
+									<polyline points="12 6 12 12 16 14"></polyline>
+								</svg>
+							</div>
+							<div>
+								<h3 style="margin: 0; font-size: 17px; font-weight: 600; color: #1e293b;">
+									<?php echo esc_html__( 'Post Diff & Revision History', 'post-export-import-with-media' ); ?>
+								</h3>
+								<span style="font-size: 13px; color: #64748b;">
+									<?php echo esc_html__( 'Inspect recent changes, compare up to 3 versions side-by-side, and restore previous versions with safety backups.', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<div style="padding: 20px 24px;">
+						<!-- Search & Filters Toolbar -->
+						<div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
+							<div style="flex: 1; min-width: 240px; position: relative;">
+								<input type="text" id="peiwm-diff-search" placeholder="<?php esc_attr_e( 'Search posts or pages by title or ID...', 'post-export-import-with-media' ); ?>" style="width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;" />
+							</div>
+							<div style="min-width: 140px;">
+								<select id="peiwm-diff-post-type" style="width: 100%; padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;">
+									<option value="any"><?php esc_html_e( 'All Post Types', 'post-export-import-with-media' ); ?></option>
+									<option value="post"><?php esc_html_e( 'Posts', 'post-export-import-with-media' ); ?></option>
+									<option value="page"><?php esc_html_e( 'Pages', 'post-export-import-with-media' ); ?></option>
+								</select>
+							</div>
+							<button type="button" id="peiwm-diff-refresh-btn" class="button" style="display: inline-flex; align-items: center; gap: 6px; height: 35px;">
+								🔄 <?php echo esc_html__( 'Refresh List', 'post-export-import-with-media' ); ?>
+							</button>
+						</div>
+
+						<!-- Two Column Workspace: Left = Recent Changes Posts, Right = Version Selector & Diff View -->
+						<div class="peiwm-diff-layout">
+							
+							<!-- LEFT COLUMN: Recent Changes Posts Table -->
+							<div class="peiwm-diff-posts-col" style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+								<div style="padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
+									<strong style="font-size: 13.5px; color: #1e293b;">
+										📝 <?php echo esc_html__( 'Recent Changes', 'post-export-import-with-media' ); ?>
+									</strong>
+									<span id="peiwm-diff-total-badge" style="font-size: 11.5px; color: #64748b;"></span>
+								</div>
+
+								<div id="peiwm-diff-posts-loading" style="padding: 30px; text-align: center; color: #64748b;">
+									<div class="peiwm-loading-spinner" style="width: 22px; height: 22px; margin: 0 auto 8px;"></div>
+									<span style="font-size: 13px;"><?php esc_html_e( 'Loading recent posts...', 'post-export-import-with-media' ); ?></span>
+								</div>
+
+								<div id="peiwm-diff-posts-empty" style="display: none; padding: 30px; text-align: center; color: #64748b; font-size: 13px;">
+									<?php esc_html_e( 'No posts found.', 'post-export-import-with-media' ); ?>
+								</div>
+
+								<div id="peiwm-diff-posts-list-wrap" class="peiwm-diff-posts-list-wrap peiwm-drag-scroll-wrap" style="max-height: 600px; overflow-y: auto; overflow-x: auto;">
+									<table class="widefat striped peiwm-table peiwm-diff-table" id="peiwm-diff-table" style="border: none; margin: 0;">
+										<thead>
+											<tr>
+												<th class="peiwm-diff-col-id"><?php esc_html_e( 'ID', 'post-export-import-with-media' ); ?></th>
+												<th class="peiwm-diff-col-title"><?php esc_html_e( 'Title', 'post-export-import-with-media' ); ?></th>
+												<th class="peiwm-diff-col-type"><?php esc_html_e( 'Type', 'post-export-import-with-media' ); ?></th>
+												<th class="peiwm-diff-col-versions"><?php esc_html_e( 'Versions', 'post-export-import-with-media' ); ?></th>
+												<th class="peiwm-diff-col-actions"><?php esc_html_e( 'Action', 'post-export-import-with-media' ); ?></th>
+											</tr>
+										</thead>
+										<tbody id="peiwm-diff-table-body">
+											<!-- Rendered via JS -->
+										</tbody>
+									</table>
+								</div>
+							</div>
+
+							<!-- RIGHT COLUMN: Selected Post Versions & Diff Inspection -->
+							<div class="peiwm-diff-detail-col" id="peiwm-diff-detail-col">
+								<!-- Placeholder when no post selected -->
+								<div id="peiwm-diff-placeholder" style="padding: 60px 20px; text-align: center; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; color: #64748b;">
+									<div style="font-size: 32px; margin-bottom: 8px;">👈</div>
+									<h4 style="margin: 0 0 6px; font-size: 15px; color: #334155; font-weight: 600;">
+										<?php esc_html_e( 'Select a Post to View Versions', 'post-export-import-with-media' ); ?>
+									</h4>
+									<p style="margin: 0; font-size: 12.5px; color: #64748b;">
+										<?php esc_html_e( 'Click on any post on the left to inspect its 3-version history, compare differences, or restore a previous version.', 'post-export-import-with-media' ); ?>
+									</p>
+								</div>
+
+								<!-- Active Post Workspace (hidden until post clicked) -->
+								<div id="peiwm-diff-workspace" style="display: none; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px;">
+									<!-- Selected Post Title Banner -->
+									<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap;">
+										<div>
+											<span id="peiwm-diff-target-type-badge" class="peiwm-status-badge" style="font-size: 11px; text-transform: uppercase;"></span>
+											<h3 id="peiwm-diff-target-title" style="margin: 4px 0 0; font-size: 16px; font-weight: 700; color: #0f172a;"></h3>
+										</div>
+										<a id="peiwm-diff-target-edit-link" href="#" target="_blank" class="button button-small" style="font-size: 11.5px;">
+											<?php esc_html_e( 'Edit in WP ↗', 'post-export-import-with-media' ); ?>
+										</a>
+									</div>
+
+									<!-- Versions List (Max 3: Version 3 Current, Version 2 Date, Version 1 Date) -->
+									<div style="margin-bottom: 18px;">
+										<label style="display: block; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+											<?php esc_html_e( 'Select Historical Version to Compare or Restore:', 'post-export-import-with-media' ); ?>
+										</label>
+										<div id="peiwm-diff-versions-container" style="display: flex; flex-direction: column; gap: 8px;">
+											<!-- Rendered via JS -->
+										</div>
+									</div>
+
+									<!-- Action Buttons: [Compare Versions] [Restore Version] -->
+									<div style="display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap;">
+										<button type="button" id="peiwm-diff-compare-btn" class="button button-primary" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600; padding: 6px 16px;">
+											⚖️ <?php echo esc_html__( 'Compare Versions', 'post-export-import-with-media' ); ?>
+										</button>
+										<?php if ( $is_pro ) : ?>
+											<button type="button" id="peiwm-diff-restore-btn" class="button" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: #b45309; border-color: #f59e0b; background: #fffbeb; padding: 6px 16px;">
+												↺ <?php echo esc_html__( 'Restore Version', 'post-export-import-with-media' ); ?>
+											</button>
+										<?php else : ?>
+											<button type="button" id="peiwm-diff-restore-btn" class="button peiwm-open-premium-modal peiwm-locked-btn" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: #b45309; border-color: #f59e0b; background: #fffbeb; padding: 6px 16px; cursor: pointer;">
+												↺ <?php echo esc_html__( 'Restore Version', 'post-export-import-with-media' ); ?>
+												<span class="peiwm-pro-lock">🔒 PRO</span>
+											</button>
+										<?php endif; ?>
+									</div>
+
+									<!-- Diff Loading State -->
+									<div id="peiwm-diff-compare-loading" style="display: none; padding: 24px; text-align: center; color: #64748b;">
+										<div class="peiwm-loading-spinner" style="width: 20px; height: 20px; margin: 0 auto 6px;"></div>
+										<span style="font-size: 12.5px;"><?php esc_html_e( 'Comparing versions...', 'post-export-import-with-media' ); ?></span>
+									</div>
+
+									<!-- Diff Output Area -->
+									<div id="peiwm-diff-output-wrap" style="display: none; border-top: 1px solid #e2e8f0; padding-top: 16px;">
+										<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+											<h4 style="margin: 0; font-size: 14px; font-weight: 700; color: #1e293b;">
+												<?php esc_html_e( 'Visual Comparison (Old vs New)', 'post-export-import-with-media' ); ?>
+											</h4>
+											<div id="peiwm-diff-stats-badge" style="font-size: 11.5px; padding: 2px 8px; border-radius: 12px; background: #f1f5f9; color: #475569; font-weight: 600;"></div>
+										</div>
+
+										<!-- Title Diff -->
+										<div id="peiwm-diff-title-box" style="margin-bottom: 14px;">
+											<label style="display: block; font-size: 11.5px; font-weight: 600; color: #64748b; margin-bottom: 4px;">
+												<?php esc_html_e( 'Post Title:', 'post-export-import-with-media' ); ?>
+											</label>
+											<div id="peiwm-diff-title-content"></div>
+										</div>
+
+										<!-- Content Diff -->
+										<div id="peiwm-diff-content-box" style="margin-bottom: 14px;">
+											<label style="display: block; font-size: 11.5px; font-weight: 600; color: #64748b; margin-bottom: 4px;">
+												<?php esc_html_e( 'Post Content Diff:', 'post-export-import-with-media' ); ?>
+											</label>
+											<div id="peiwm-diff-content-container" class="peiwm-diff-content-scroll" style="max-height: 400px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff;"></div>
+										</div>
+
+										<!-- Excerpt Diff -->
+										<div id="peiwm-diff-excerpt-box" style="display: none; margin-bottom: 14px;">
+											<label style="display: block; font-size: 11.5px; font-weight: 600; color: #64748b; margin-bottom: 4px;">
+												<?php esc_html_e( 'Post Excerpt:', 'post-export-import-with-media' ); ?>
+											</label>
+											<div id="peiwm-diff-excerpt-content"></div>
+										</div>
+									</div>
+
+								</div>
+							</div>
+
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- TAB 9: SEO ANALYSIS (PRO) -->
+			<div class="peiwm-pt-tab-pane" id="peiwm-pane-seo-analysis" style="display: none;">
+				<div class="peiwm-section <?php echo ! $is_pro ? 'peiwm-locked-section' : ''; ?>" style="position: relative; margin-bottom: 24px;">
+					<?php if ( ! $is_pro ) : ?>
+						<button type="button" class="peiwm-pro-upgrade-overlay peiwm-open-premium-modal">
+							<span class="peiwm-pro-upgrade-badge">🔒 <?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span>
+						</button>
+					<?php endif; ?>
+
+					<div class="panel-head">
+						<div class="panel-title">
+							<div class="panel-icon posts" style="background: rgba(14, 165, 233, 0.1); color: #0284c7;">
+								<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M3 3v18h18" />
+									<path d="m19 9-5 5-4-4-3 3" />
+								</svg>
+							</div>
+							<div>
+								<h3 style="margin: 0; font-size: 17px; font-weight: 600; color: #1e293b;">
+									<?php echo esc_html__( 'SEO Analysis & Migration Intelligence', 'post-export-import-with-media' ); ?>
+								</h3>
+								<span style="font-size: 13px; color: #64748b;">
+									<?php echo esc_html__( 'Audit site-wide post SEO health, detect keyword cannibalization, preview Google SERP snippets, and compare SEO changes across posts.', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<div style="padding: 20px 24px;">
+						<!-- Summary Metrics Cards -->
+						<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 22px;">
+							<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; border-left: 4px solid #0284c7;">
+								<span style="display: block; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase;">
+									<?php echo esc_html__( 'Total Posts Scanned', 'post-export-import-with-media' ); ?>
+								</span>
+								<div style="display: flex; align-items: baseline; gap: 8px; margin-top: 4px;">
+									<span id="peiwm-seo-metric-scanned" style="font-size: 24px; font-weight: 700; color: #0f172a;"><?php echo ! $is_pro ? '142' : '0'; ?></span>
+									<span style="font-size: 12px; color: #64748b;"><?php echo esc_html__( 'posts & pages', 'post-export-import-with-media' ); ?></span>
+								</div>
+							</div>
+
+							<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; border-left: 4px solid #10b981;">
+								<span style="display: block; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase;">
+									<?php echo esc_html__( 'Average SEO Health', 'post-export-import-with-media' ); ?>
+								</span>
+								<div style="display: flex; align-items: baseline; gap: 8px; margin-top: 4px;">
+									<span id="peiwm-seo-metric-score" style="font-size: 24px; font-weight: 700; color: #10b981;"><?php echo ! $is_pro ? '84' : '—'; ?></span>
+									<span style="font-size: 12px; color: #64748b;">/ 100</span>
+								</div>
+							</div>
+
+							<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; border-left: 4px solid #ef4444;">
+								<span style="display: block; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase;">
+									<?php echo esc_html__( 'Critical SEO Issues', 'post-export-import-with-media' ); ?>
+								</span>
+								<div style="display: flex; align-items: baseline; gap: 8px; margin-top: 4px;">
+									<span id="peiwm-seo-metric-critical" style="font-size: 24px; font-weight: 700; color: #ef4444;"><?php echo ! $is_pro ? '12' : '0'; ?></span>
+									<span style="font-size: 12px; color: #64748b;"><?php echo esc_html__( 'need attention', 'post-export-import-with-media' ); ?></span>
+								</div>
+							</div>
+
+							<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; border-left: 4px solid #f59e0b;">
+								<span style="display: block; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase;">
+									<?php echo esc_html__( 'Keyword Conflicts', 'post-export-import-with-media' ); ?>
+								</span>
+								<div style="display: flex; align-items: baseline; gap: 8px; margin-top: 4px;">
+									<span id="peiwm-seo-metric-conflicts" style="font-size: 24px; font-weight: 700; color: #f59e0b;"><?php echo ! $is_pro ? '3' : '0'; ?></span>
+									<span style="font-size: 12px; color: #64748b;"><?php echo esc_html__( 'cannibalized', 'post-export-import-with-media' ); ?></span>
+								</div>
+							</div>
+						</div>
+
+						<!-- Filter Controls & Scan Toolbar -->
+						<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 20px; padding: 14px 18px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+							<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+								<div>
+									<label for="peiwm-seo-post-type" style="font-size: 12px; font-weight: 600; color: #334155; margin-right: 5px;">
+										<?php echo esc_html__( 'Type:', 'post-export-import-with-media' ); ?>
+									</label>
+									<select id="peiwm-seo-post-type" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px; background: #fff;">
+										<option value="all"><?php echo esc_html__( 'All Types', 'post-export-import-with-media' ); ?></option>
+										<option value="post" selected><?php echo esc_html__( 'Posts', 'post-export-import-with-media' ); ?></option>
+										<option value="page"><?php echo esc_html__( 'Pages', 'post-export-import-with-media' ); ?></option>
+									</select>
+								</div>
+
+								<div>
+									<label for="peiwm-seo-source-filter" style="font-size: 12px; font-weight: 600; color: #334155; margin-right: 5px;">
+										<?php echo esc_html__( 'SEO Source:', 'post-export-import-with-media' ); ?>
+									</label>
+									<select id="peiwm-seo-source-filter" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px; background: #fff;">
+										<option value="all"><?php echo esc_html__( 'All Sources', 'post-export-import-with-media' ); ?></option>
+										<option value="Rank Math">Rank Math</option>
+										<option value="Yoast SEO">Yoast SEO</option>
+										<option value="All in One SEO">AIOSEO</option>
+										<option value="SEOPress">SEOPress</option>
+										<option value="WordPress Core">WordPress Core</option>
+									</select>
+								</div>
+
+								<div>
+									<label for="peiwm-seo-score-filter" style="font-size: 12px; font-weight: 600; color: #334155; margin-right: 5px;">
+										<?php echo esc_html__( 'Score:', 'post-export-import-with-media' ); ?>
+									</label>
+									<select id="peiwm-seo-score-filter" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px; background: #fff;">
+										<option value="all"><?php echo esc_html__( 'All Scores', 'post-export-import-with-media' ); ?></option>
+										<option value="excellent"><?php echo esc_html__( 'Excellent (85-100)', 'post-export-import-with-media' ); ?></option>
+										<option value="good"><?php echo esc_html__( 'Good (70-84)', 'post-export-import-with-media' ); ?></option>
+										<option value="needs_improvement"><?php echo esc_html__( 'Needs Work (50-69)', 'post-export-import-with-media' ); ?></option>
+										<option value="critical"><?php echo esc_html__( 'Critical (< 50)', 'post-export-import-with-media' ); ?></option>
+									</select>
+								</div>
+
+								<div>
+									<label for="peiwm-seo-issue-filter" style="font-size: 12px; font-weight: 600; color: #334155; margin-right: 5px;">
+										<?php echo esc_html__( 'Issue Type:', 'post-export-import-with-media' ); ?>
+									</label>
+									<select id="peiwm-seo-issue-filter" style="padding: 6px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px; background: #fff;">
+										<option value="all"><?php echo esc_html__( 'All Posts', 'post-export-import-with-media' ); ?></option>
+										<option value="cannibalized"><?php echo esc_html__( '⚠️ Keyword Cannibalization', 'post-export-import-with-media' ); ?></option>
+										<option value="missing_kw"><?php echo esc_html__( '✕ Missing Focus Keyword', 'post-export-import-with-media' ); ?></option>
+										<option value="missing_desc"><?php echo esc_html__( '✕ Missing Meta Description', 'post-export-import-with-media' ); ?></option>
+										<option value="missing_alt"><?php echo esc_html__( '🖼️ Missing Image ALT', 'post-export-import-with-media' ); ?></option>
+										<option value="critical"><?php echo esc_html__( '🚨 Critical SEO Score', 'post-export-import-with-media' ); ?></option>
+									</select>
+								</div>
+
+								<div>
+									<input type="text" id="peiwm-seo-keyword-filter" placeholder="<?php esc_attr_e( 'Search keyword or title...', 'post-export-import-with-media' ); ?>" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 12.5px; min-width: 190px;" />
+								</div>
+							</div>
+
+							<div>
+								<button type="button" id="peiwm-seo-scan-btn" class="btn btn-primary <?php echo ! $is_pro ? 'peiwm-locked-btn peiwm-open-premium-modal' : ''; ?>" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; font-weight: 600;">
+									<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M3 3v18h18" />
+										<path d="m19 9-5 5-4-4-3 3" />
+									</svg>
+									<?php echo esc_html__( 'Run Site-Wide SEO Scan', 'post-export-import-with-media' ); ?>
+								</button>
+							</div>
+						</div>
+
+						<!-- Progress Spinner -->
+						<div id="peiwm-seo-progress" style="display: none; margin-bottom: 20px; padding: 14px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<div style="display: flex; align-items: center; gap: 10px;">
+								<div class="peiwm-loading-spinner" style="width: 20px; height: 20px;"></div>
+								<span style="font-size: 13px; font-weight: 600; color: #334155;">
+									<?php echo esc_html__( 'Analyzing post SEO metadata, keyword densities, and image alt tags...', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+
+						<!-- Keyword Cannibalization Alert Container -->
+						<div id="peiwm-seo-cannibalization-alert" style="<?php echo ! $is_pro ? 'display: block;' : 'display: none;'; ?> margin-bottom: 20px; padding: 14px 18px; background: #fffbeb; border: 1px solid #fef08a; border-radius: 8px;">
+							<div style="display: flex; align-items: flex-start; gap: 12px;">
+								<span style="font-size: 20px; line-height: 1;">⚠️</span>
+								<div style="flex: 1;">
+									<strong style="font-size: 14px; color: #854d0e;">
+										<?php echo esc_html__( 'Keyword Cannibalization Detected', 'post-export-import-with-media' ); ?>
+									</strong>
+									<p style="margin: 4px 0 8px 0; font-size: 12.5px; color: #92400e;">
+										<?php echo esc_html__( 'Multiple posts share the same focus keyword. Competing posts split Google rankings and dilute authority. Click a keyword pill to filter and inspect competing posts.', 'post-export-import-with-media' ); ?>
+									</p>
+									<div id="peiwm-seo-cannibalization-list" style="display: flex; gap: 8px; flex-wrap: wrap;">
+										<span class="peiwm-seo-cannibal-pill" data-keyword="ai chatbot" style="display: inline-block; padding: 3px 10px; background: #fff; border: 1px solid #fcd34d; border-radius: 20px; font-size: 12px; color: #78350f; font-weight: 600; cursor: pointer;">
+											"ai chatbot" &bull; 4 competing posts &rarr;
+										</span>
+										<span class="peiwm-seo-cannibal-pill" data-keyword="woocommerce product sync" style="display: inline-block; padding: 3px 10px; background: #fff; border: 1px solid #fcd34d; border-radius: 20px; font-size: 12px; color: #78350f; font-weight: 600; cursor: pointer;">
+											"woocommerce product sync" &bull; 2 competing posts &rarr;
+										</span>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<!-- Bulk Actions Toolbar -->
+						<div id="peiwm-seo-bulk-bar" style="display: none; align-items: center; justify-content: space-between; padding: 10px 16px; background: #0f172a; color: #fff; border-radius: 8px; margin-bottom: 14px; box-shadow: 0 4px 14px rgba(0,0,0,0.15); flex-wrap: wrap; gap: 10px; display: flex;">
+							<div style="display: flex; align-items: center; gap: 12px;">
+								<span style="font-size: 13px; font-weight: 600;">
+									<span id="peiwm-seo-selected-count" style="color: #38bdf8; font-size: 14px; font-weight: 700;">0</span> <?php echo esc_html__( 'posts selected', 'post-export-import-with-media' ); ?>
+								</span>
+								<button type="button" id="peiwm-seo-clear-select-btn" class="button button-small" style="background: rgba(255,255,255,0.12); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.25); font-size: 11.5px;">
+									<?php echo esc_html__( 'Deselect All', 'post-export-import-with-media' ); ?>
+								</button>
+							</div>
+							<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+								<button type="button" id="peiwm-seo-bulk-kw-btn" class="button button-primary button-small" style="display: inline-flex; align-items: center; gap: 5px;">
+									<span>🏷️</span> <?php echo esc_html__( 'Bulk Set Focus Keyword', 'post-export-import-with-media' ); ?>
+								</button>
+								<button type="button" id="peiwm-seo-bulk-diff-btn" class="button button-secondary button-small" style="display: inline-flex; align-items: center; gap: 5px; background: #334155; color: #fff; border-color: #475569;">
+									<span>⚖️</span> <?php echo esc_html__( 'Compare Selected (2 Posts) in Diff', 'post-export-import-with-media' ); ?>
+								</button>
+							</div>
+						</div>
+
+						<!-- Post SEO Audit Results Table -->
+						<div id="peiwm-seo-table-container" class="peiwm-drag-scroll-wrap" style="overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; margin-bottom: 24px;">
+							<table class="widefat striped peiwm-table peiwm-seo-table" id="peiwm-seo-table">
+								<thead>
+									<tr>
+										<th class="peiwm-col-check"><input type="checkbox" id="peiwm-seo-select-all" title="<?php esc_attr_e( 'Select All', 'post-export-import-with-media' ); ?>"></th>
+										<th class="peiwm-col-id"><?php echo esc_html__( 'ID', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-title"><?php echo esc_html__( 'Post Title & URL', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-plugin"><?php echo esc_html__( 'SEO Source', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-score"><?php echo esc_html__( 'SEO Score', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-keyword"><?php echo esc_html__( 'Focus Keyword', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-usage"><?php echo esc_html__( 'Usage / Density', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-issues"><?php echo esc_html__( 'Issue Breakdown', 'post-export-import-with-media' ); ?></th>
+										<th class="peiwm-col-actions"><?php echo esc_html__( 'Actions', 'post-export-import-with-media' ); ?></th>
+									</tr>
+								</thead>
+								<tbody id="peiwm-seo-table-body">
+									<?php if ( ! $is_pro ) : ?>
+										<!-- Interactive Free Showcase Sample Rows -->
+										<tr>
+											<td class="peiwm-col-check"><input type="checkbox" class="peiwm-open-premium-modal"></td>
+											<td>#611</td>
+											<td>
+												<strong><a href="#" class="peiwm-open-premium-modal">AI Chatbot Database Integration: 3 Powerful Upgrades</a></strong>
+												<div style="font-size: 11.5px; color: #64748b; margin-top: 2px;">/ai-chatbot-database-integration/</div>
+											</td>
+											<td><span style="display: inline-block; padding: 2px 7px; border-radius: 4px; background: #e0f2fe; color: #0369a1; font-size: 11px; font-weight: 600;">Rank Math</span></td>
+											<td><span style="display: inline-block; padding: 3px 10px; border-radius: 12px; background: #dcfce7; color: #166534; font-size: 12px; font-weight: 700;">92 / 100</span></td>
+											<td><code style="font-size: 12px; color: #0f172a;">ai chatbot database integration</code></td>
+											<td><strong>16 times</strong> <small style="color: #64748b;">(1.21%)</small></td>
+											<td>
+												<div class="peiwm-seo-issues-badge peiwm-open-premium-modal" title="<?php esc_attr_e( 'Click to inspect issues breakdown', 'post-export-import-with-media' ); ?>">
+													<span style="color: #166534; font-weight: 600; font-size: 12px;">✓ 18</span>
+													<span style="color: #ca8a04; font-weight: 600; font-size: 12px;">⚠ 3</span>
+													<span style="color: #dc2626; font-weight: 600; font-size: 12px;">✕ 1</span>
+												</div>
+											</td>
+											<td style="text-align: right;">
+												<div class="peiwm-row-actions">
+													<button type="button" class="button button-small peiwm-btn-action peiwm-open-premium-modal">🔍 Inspect</button>
+													<button type="button" class="button button-small peiwm-btn-action peiwm-open-premium-modal">⚖️ Diff</button>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td class="peiwm-col-check"><input type="checkbox" class="peiwm-open-premium-modal"></td>
+											<td>#624</td>
+											<td>
+												<strong><a href="#" class="peiwm-open-premium-modal">WooCommerce Product Sync & Migration Best Practices</a></strong>
+												<div style="font-size: 11.5px; color: #64748b; margin-top: 2px;">/woocommerce-product-sync/</div>
+											</td>
+											<td><span style="display: inline-block; padding: 2px 7px; border-radius: 4px; background: #ede9fe; color: #6d28d9; font-size: 11px; font-weight: 600;">Yoast SEO</span></td>
+											<td><span style="display: inline-block; padding: 3px 10px; border-radius: 12px; background: #fef9c3; color: #854d0e; font-size: 12px; font-weight: 700;">76 / 100</span></td>
+											<td><code style="font-size: 12px; color: #0f172a;">product sync</code></td>
+											<td><strong>9 times</strong> <small style="color: #64748b;">(0.74%)</small></td>
+											<td>
+												<div class="peiwm-seo-issues-badge peiwm-open-premium-modal" title="<?php esc_attr_e( 'Click to inspect issues breakdown', 'post-export-import-with-media' ); ?>">
+													<span style="color: #166534; font-weight: 600; font-size: 12px;">✓ 14</span>
+													<span style="color: #ca8a04; font-weight: 600; font-size: 12px;">⚠ 5</span>
+													<span style="color: #dc2626; font-weight: 600; font-size: 12px;">✕ 2</span>
+												</div>
+											</td>
+											<td style="text-align: right;">
+												<div class="peiwm-row-actions">
+													<button type="button" class="button button-small peiwm-btn-action peiwm-open-premium-modal">🔍 Inspect</button>
+													<button type="button" class="button button-small peiwm-btn-action peiwm-open-premium-modal">⚖️ Diff</button>
+												</div>
+											</td>
+										</tr>
+									<?php else : ?>
+										<tr id="peiwm-seo-empty-row">
+											<td colspan="9" style="padding: 24px; text-align: center; color: #64748b;">
+												<?php echo esc_html__( 'Click "Run Site-Wide SEO Scan" to audit and score post SEO metadata.', 'post-export-import-with-media' ); ?>
+											</td>
+										</tr>
+									<?php endif; ?>
+								</tbody>
+							</table>
+						</div>
+
+						<!-- Interactive Showcase Cards (Google SERP Preview & Keyword Distribution Map) -->
+						<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px;">
+							<!-- Google SERP Live Preview Card -->
+							<div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px 20px;">
+								<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px;">
+									<strong style="font-size: 13.5px; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+										<span>🌐</span> <?php echo esc_html__( 'Google SERP Live Snippet Preview', 'post-export-import-with-media' ); ?>
+									</strong>
+									<div style="display: inline-flex; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; font-size: 11.5px;">
+										<button type="button" class="peiwm-seo-serp-toggle active" data-view="desktop" style="padding: 3px 9px; border: none; background: #0284c7; color: #fff; cursor: pointer; font-weight: 600;">Desktop</button>
+										<button type="button" class="peiwm-seo-serp-toggle" data-view="mobile" style="padding: 3px 9px; border: none; background: #f8fafc; color: #64748b; cursor: pointer; font-weight: 600;">Mobile</button>
+									</div>
+								</div>
+
+								<!-- Snippet Container -->
+								<div id="peiwm-seo-serp-preview-box" style="padding: 14px 16px; background: #fafafa; border: 1px solid #e5e7eb; border-radius: 8px;">
+									<div id="peiwm-seo-serp-breadcrumb" style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #4b5563; margin-bottom: 4px;">
+										<span style="display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #e2e8f0; text-align: center; font-size: 9px; line-height: 14px;">⚡</span>
+										<span id="peiwm-seo-serp-domain"><?php echo esc_html( wp_parse_url( home_url(), PHP_URL_HOST ) ?: 'mysite.com' ); ?></span>
+										<span>›</span>
+										<span id="peiwm-seo-serp-slug" style="color: #6b7280;">ai-chatbot-database-integration</span>
+									</div>
+									<div id="peiwm-seo-serp-title" style="font-size: 18px; color: #1a0dab; font-weight: 400; line-height: 1.3; cursor: pointer; text-decoration: none; margin-bottom: 4px;">
+										AI Chatbot Database Integration: 3 Powerful Upgrades
+									</div>
+									<div id="peiwm-seo-serp-desc" style="font-size: 13.5px; color: #4d5156; line-height: 1.5;">
+										Connect your AI chatbot to live database data for accurate store inventory, dynamic pricing, and automated customer support.
+									</div>
+								</div>
+
+								<!-- Pixel Width Indicators -->
+								<div style="margin-top: 14px; font-size: 11.5px; color: #64748b;">
+									<div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+										<span>Title Pixel Width: <strong id="peiwm-seo-serp-title-px">480px</strong> / 600px max</span>
+										<span style="color: #166534; font-weight: 600;">Optimal</span>
+									</div>
+									<div style="width: 100%; height: 5px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+										<div id="peiwm-seo-serp-title-bar" style="width: 80%; height: 100%; background: #10b981; border-radius: 3px;"></div>
+									</div>
+								</div>
+							</div>
+
+							<!-- Keyword Distribution Map -->
+							<div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px 20px;">
+								<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px;">
+									<strong style="font-size: 13.5px; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+										<span>🗺️</span> <?php echo esc_html__( 'Keyword Distribution Map', 'post-export-import-with-media' ); ?>
+										<span id="peiwm-seo-pane-dist-post" style="font-size: 11.5px; font-weight: 500; color: #64748b; margin-left: 6px;"></span>
+									</strong>
+									<span id="peiwm-seo-pane-dist-total" style="font-size: 12px; color: #0284c7; font-weight: 600;">16 Total Occurrences</span>
+								</div>
+
+								<div id="peiwm-seo-pane-dist-container" style="display: flex; flex-direction: column; gap: 8px; font-size: 12.5px;">
+									<div style="display: flex; align-items: center; justify-content: space-between;">
+										<span style="color: #475569; width: 140px;">SEO Title</span>
+										<div style="flex: 1; height: 7px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin: 0 10px;">
+											<div style="width: 100%; height: 100%; background: #0284c7;"></div>
+										</div>
+										<span style="font-weight: 700; color: #0f172a; width: 20px; text-align: right;">1</span>
+									</div>
+
+									<div style="display: flex; align-items: center; justify-content: space-between;">
+										<span style="color: #475569; width: 140px;">Meta Description</span>
+										<div style="flex: 1; height: 7px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin: 0 10px;">
+											<div style="width: 100%; height: 100%; background: #0284c7;"></div>
+										</div>
+										<span style="font-weight: 700; color: #0f172a; width: 20px; text-align: right;">1</span>
+									</div>
+
+									<div style="display: flex; align-items: center; justify-content: space-between;">
+										<span style="color: #475569; width: 140px;">URL Slug</span>
+										<div style="flex: 1; height: 7px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin: 0 10px;">
+											<div style="width: 100%; height: 100%; background: #0284c7;"></div>
+										</div>
+										<span style="font-weight: 700; color: #0f172a; width: 20px; text-align: right;">1</span>
+									</div>
+
+									<div style="display: flex; align-items: center; justify-content: space-between;">
+										<span style="color: #475569; width: 140px;">Introduction Chunk</span>
+										<div style="flex: 1; height: 7px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin: 0 10px;">
+											<div style="width: 100%; height: 100%; background: #0284c7;"></div>
+										</div>
+										<span style="font-weight: 700; color: #0f172a; width: 20px; text-align: right;">1</span>
+									</div>
+
+									<div style="display: flex; align-items: center; justify-content: space-between;">
+										<span style="color: #475569; width: 140px;">Subheadings (H2/H3)</span>
+										<div style="flex: 1; height: 7px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin: 0 10px;">
+											<div style="width: 75%; height: 100%; background: #0284c7;"></div>
+										</div>
+										<span style="font-weight: 700; color: #0f172a; width: 20px; text-align: right;">3</span>
+									</div>
+
+									<div style="display: flex; align-items: center; justify-content: space-between;">
+										<span style="color: #475569; width: 140px;">Content Body</span>
+										<div style="flex: 1; height: 7px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin: 0 10px;">
+											<div style="width: 90%; height: 100%; background: #0284c7;"></div>
+										</div>
+										<span style="font-weight: 700; color: #0f172a; width: 20px; text-align: right;">10</span>
+									</div>
+
+									<div style="display: flex; align-items: center; justify-content: space-between;">
+										<span style="color: #475569; width: 140px;">Image ALT Tags</span>
+										<div style="flex: 1; height: 7px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin: 0 10px;">
+											<div style="width: 60%; height: 100%; background: #0284c7;"></div>
+										</div>
+										<span style="font-weight: 700; color: #0f172a; width: 20px; text-align: right;">2</span>
+									</div>
+								</div>
+							</div>
+						</div>
+
+					</div>
+				</div>
+			</div>
+
+			<!-- Synchronous Instant Tab Activation (Zero Blink on Reload) -->
+			<script>
+				(function () {
+					try {
+						var hashTab = (window.location.hash || '').replace(/^#tab-|^#/, '');
+						var savedTab = hashTab || localStorage.getItem('peiwm_active_post_tools_tab') || 'internal-links';
+						var validTabs = ['internal-links', 'find-replace', 'post-compare', 'post-cleanup', 'missing-media', 'duplicate-detector', 'orphaned-posts', 'post-diff', 'seo-analysis'];
+						if (validTabs.indexOf(savedTab) === -1) {
+							savedTab = 'internal-links';
+						}
+						var btn = document.querySelector('.peiwm-pt-tab-btn[data-tab="' + savedTab + '"]');
+						var pane = document.getElementById('peiwm-pane-' + savedTab);
+						if (btn) btn.classList.add('active');
+						if (pane) {
+							pane.classList.add('active');
+							pane.style.display = 'block';
+						}
+					} catch (e) {}
+				})();
+			</script>
+
+			<!-- Assign Category & Tag Modal (Global Top-Level) -->
+			<div id="peiwm-assign-category-modal" class="peiwm-modal-overlay" style="display: none;">
+				<div class="peiwm-modal" style="max-width: 480px; width: 100%;">
+					<div class="peiwm-modal-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding: 16px 20px;">
+						<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+							<span id="peiwm-tax-modal-header-icon">📁</span> <span id="peiwm-tax-modal-title"><?php echo esc_html__( 'Assign Category or Tag', 'post-export-import-with-media' ); ?></span>
+						</h3>
+						<button type="button" class="peiwm-modal-close" style="background: none; border: none; font-size: 22px; cursor: pointer; color: #64748b; line-height: 1;">&times;</button>
+					</div>
+					<div class="peiwm-modal-body" style="padding: 18px 20px;">
+						<div id="peiwm-cat-modal-target-desc" style="font-size: 13px; color: #334155; margin-bottom: 14px; padding: 10px 14px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<!-- Populated dynamically -->
+						</div>
+
+						<!-- Tab Navigation -->
+						<div class="peiwm-tax-modal-tabs" style="display: flex; gap: 6px; border-bottom: 2px solid #e2e8f0; margin-bottom: 14px;">
+							<button type="button" class="peiwm-tax-modal-tab-btn active" data-tab="categories" style="padding: 8px 16px; font-size: 13px; font-weight: 600; color: #b45309; background: none; border: none; border-bottom: 2px solid #d97706; margin-bottom: -2px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+								📁 <?php echo esc_html__( 'Categories', 'post-export-import-with-media' ); ?>
+							</button>
+							<button type="button" class="peiwm-tax-modal-tab-btn" data-tab="tags" style="padding: 8px 16px; font-size: 13px; font-weight: 600; color: #64748b; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+								🏷️ <?php echo esc_html__( 'Tags', 'post-export-import-with-media' ); ?>
+							</button>
+						</div>
+
+						<!-- Pane 1: Categories -->
+						<div class="peiwm-tax-modal-pane" id="peiwm-tax-pane-categories">
+							<div style="margin-bottom: 12px;">
+								<input type="text" id="peiwm-cat-modal-search" placeholder="<?php esc_attr_e( 'Search categories...', 'post-export-import-with-media' ); ?>" style="width: 100%; padding: 7px 12px; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 6px;" />
+							</div>
+
+							<div id="peiwm-cat-modal-loading" style="text-align: center; padding: 24px; color: #64748b;">
+								<div class="peiwm-loading-spinner" style="width: 22px; height: 22px; margin: 0 auto 8px;"></div>
+								<span style="font-size: 13px;"><?php echo esc_html__( 'Loading categories...', 'post-export-import-with-media' ); ?></span>
+							</div>
+
+							<div id="peiwm-cat-modal-list" style="max-height: 250px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 0; display: none;">
+								<!-- Category radio list rendered dynamically -->
+							</div>
+
+							<div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #f1f5f9;">
+								<label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #475569; cursor: pointer;">
+									<input type="checkbox" id="peiwm-cat-modal-append" value="1" />
+									<span><?php echo esc_html__( 'Keep existing categories (append instead of overwrite)', 'post-export-import-with-media' ); ?></span>
+								</label>
+							</div>
+						</div>
+
+						<!-- Pane 2: Tags -->
+						<div class="peiwm-tax-modal-pane" id="peiwm-tax-pane-tags" style="display: none;">
+							<div style="margin-bottom: 12px;">
+								<input type="text" id="peiwm-tag-modal-search" placeholder="<?php esc_attr_e( 'Search tags...', 'post-export-import-with-media' ); ?>" style="width: 100%; padding: 7px 12px; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 6px;" />
+							</div>
+
+							<div id="peiwm-tag-modal-loading" style="text-align: center; padding: 24px; color: #64748b; display: none;">
+								<div class="peiwm-loading-spinner" style="width: 22px; height: 22px; margin: 0 auto 8px;"></div>
+								<span style="font-size: 13px;"><?php echo esc_html__( 'Loading tags...', 'post-export-import-with-media' ); ?></span>
+							</div>
+
+							<div id="peiwm-tag-modal-list" style="max-height: 220px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 0; display: none;">
+								<!-- Tag checkbox list rendered dynamically -->
+							</div>
+
+							<div style="margin-top: 12px;">
+								<label for="peiwm-tag-modal-new-input" style="display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 5px;">
+									<?php echo esc_html__( 'Or create / assign new tag(s):', 'post-export-import-with-media' ); ?>
+								</label>
+								<input type="text" id="peiwm-tag-modal-new-input" placeholder="<?php esc_attr_e( 'e.g. News, Featured (comma-separated)', 'post-export-import-with-media' ); ?>" style="width: 100%; padding: 7px 12px; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 6px;" />
+							</div>
+
+							<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #f1f5f9;">
+								<label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #475569; cursor: pointer;">
+									<input type="checkbox" id="peiwm-tag-modal-append" value="1" checked="checked" />
+									<span><?php echo esc_html__( 'Keep existing tags (append instead of overwrite)', 'post-export-import-with-media' ); ?></span>
+								</label>
+							</div>
+						</div>
+					</div>
+					<div class="peiwm-modal-footer" style="padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
+						<button type="button" class="button peiwm-modal-close">
+							<?php echo esc_html__( 'Cancel', 'post-export-import-with-media' ); ?>
+						</button>
+						<button type="button" id="peiwm-cat-modal-assign-btn" class="button button-primary" style="font-weight: 600;">
+							<?php echo esc_html__( 'Assign Category', 'post-export-import-with-media' ); ?>
+						</button>
+						<button type="button" id="peiwm-tag-modal-assign-btn" class="button button-primary" style="font-weight: 600; display: none; background: #2563eb; border-color: #2563eb;">
+							<?php echo esc_html__( 'Assign Tag(s)', 'post-export-import-with-media' ); ?>
+						</button>
+					</div>
+				</div>
+			</div>
+
+			<!-- Post Diff Restore Confirmation Modal -->
+			<div id="peiwm-diff-restore-modal" class="peiwm-modal-overlay" style="display: none;">
+				<div class="peiwm-modal" style="max-width: 440px; width: 100%;">
+					<div class="peiwm-modal-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding: 16px 20px; background: #fffbeb;">
+						<h3 style="margin: 0; font-size: 15px; font-weight: 700; color: #92400e; display: flex; align-items: center; gap: 8px;">
+							<span>↺</span> <?php echo esc_html__( 'Confirm Version Restore', 'post-export-import-with-media' ); ?>
+						</h3>
+						<button type="button" class="peiwm-modal-close" id="peiwm-diff-restore-close-btn" style="background: none; border: none; font-size: 22px; cursor: pointer; color: #94a3b8; line-height: 1;">&times;</button>
+					</div>
+					<div class="peiwm-modal-body" style="padding: 20px;">
+						<p style="margin: 0 0 12px; font-size: 13.5px; color: #334155; line-height: 1.5;">
+							<?php echo esc_html__( 'Are you sure you want to restore this post to the selected version?', 'post-export-import-with-media' ); ?>
+						</p>
+						<div id="peiwm-diff-restore-target-desc" style="padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12.5px; color: #475569; margin-bottom: 14px;">
+						</div>
+						<div style="font-size: 12px; color: #059669; display: flex; align-items: center; gap: 6px;">
+							<span></span> <?php echo esc_html__( 'A safety snapshot of your current version will be archived before restoring.', 'post-export-import-with-media' ); ?>
+						</div>
+					</div>
+					<div class="peiwm-modal-footer" style="padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
+						<button type="button" class="button peiwm-modal-close" id="peiwm-diff-restore-cancel-btn">
+							<?php echo esc_html__( 'Cancel', 'post-export-import-with-media' ); ?>
+						</button>
+						<button type="button" id="peiwm-diff-confirm-restore-btn" class="button button-primary" style="background: #d97706; border-color: #d97706; font-weight: 600;">
+							<?php echo esc_html__( 'Yes, Restore Version', 'post-export-import-with-media' ); ?>
+						</button>
+					</div>
+				</div>
+			</div>
+
+			<!-- Post SEO Deep Inspection Modal (PRO) -->
+			<div id="peiwm-seo-inspect-modal" class="peiwm-modal-overlay" style="display: none;">
+				<div class="peiwm-modal" style="max-width: 860px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
+					<div class="peiwm-modal-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding: 16px 24px; background: #f8fafc;">
+						<div style="display: flex; align-items: center; gap: 10px;">
+							<div style="width: 32px; height: 32px; border-radius: 6px; background: #0284c7; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px;">
+								🔍
+							</div>
+							<div>
+								<h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #1e293b;" id="peiwm-seo-modal-title">
+									<?php echo esc_html__( 'Post SEO Audit & Deep Inspection', 'post-export-import-with-media' ); ?>
+								</h3>
+								<div id="peiwm-seo-modal-subtitle" style="font-size: 12px; color: #64748b; margin-top: 2px;">
+									<!-- Dynamic post meta info -->
+								</div>
+							</div>
+						</div>
+						<button type="button" class="peiwm-modal-close" id="peiwm-seo-inspect-close-btn" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #94a3b8; line-height: 1;">&times;</button>
+					</div>
+
+					<div class="peiwm-modal-body" style="padding: 20px 24px; overflow-y: auto; flex: 1;">
+						<!-- Loading State -->
+						<div id="peiwm-seo-modal-loading" style="text-align: center; padding: 40px 20px; color: #64748b;">
+							<div class="peiwm-loading-spinner" style="width: 28px; height: 28px; margin: 0 auto 12px;"></div>
+							<p style="font-size: 14px; font-weight: 600; margin: 0; color: #334155;"><?php echo esc_html__( 'Running deep SEO analysis and content inspection...', 'post-export-import-with-media' ); ?></p>
+						</div>
+
+						<!-- Content Container -->
+						<div id="peiwm-seo-modal-content" style="display: none;">
+							<!-- Top Score & Quick Info Bar -->
+							<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px;">
+								<div style="padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+									<span style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase;"><?php echo esc_html__( 'Overall SEO Score', 'post-export-import-with-media' ); ?></span>
+									<div style="display: flex; align-items: baseline; gap: 6px; margin-top: 4px;">
+										<span id="peiwm-seo-modal-score" style="font-size: 26px; font-weight: 800; color: #10b981;">--</span>
+										<span style="font-size: 13px; color: #64748b;">/ 100</span>
+										<span id="peiwm-seo-modal-tier" style="font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: auto;">--</span>
+									</div>
+								</div>
+								<div style="padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+									<span style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase;"><?php echo esc_html__( 'SEO Plugin Source', 'post-export-import-with-media' ); ?></span>
+									<div style="margin-top: 6px;">
+										<span id="peiwm-seo-modal-source" class="peiwm-plugin-badge" style="font-size: 12px; font-weight: 700; color: #0284c7;">WordPress Core</span>
+									</div>
+								</div>
+								<div style="padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+									<span style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase;"><?php echo esc_html__( 'Focus Keyword', 'post-export-import-with-media' ); ?></span>
+									<div style="margin-top: 6px;">
+										<code id="peiwm-seo-modal-kw" style="font-size: 12px; font-weight: 600; color: #0f172a; padding: 2px 6px; background: #e2e8f0; border-radius: 4px; display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">--</code>
+									</div>
+								</div>
+								<div style="padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+									<span style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase;"><?php echo esc_html__( 'Word Count & Density', 'post-export-import-with-media' ); ?></span>
+									<div style="display: flex; align-items: baseline; gap: 6px; margin-top: 4px;">
+										<span id="peiwm-seo-modal-words" style="font-size: 18px; font-weight: 700; color: #1e293b;">0</span>
+										<span id="peiwm-seo-modal-density" style="font-size: 12px; color: #64748b;">(0.00%)</span>
+									</div>
+								</div>
+								<div style="padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+									<span style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase;"><?php echo esc_html__( 'Links & Media', 'post-export-import-with-media' ); ?></span>
+									<div style="font-size: 12px; color: #334155; margin-top: 5px; display: flex; flex-direction: column; gap: 2px;">
+										<span id="peiwm-seo-modal-links-stat">🔗 0 int &bull; 0 ext</span>
+										<span id="peiwm-seo-modal-imgs-stat">🖼️ 0 images</span>
+									</div>
+								</div>
+							</div>
+
+							<!-- Live Google SERP Snippet Preview Inside Modal -->
+							<div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px;">
+								<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+									<strong style="font-size: 13.5px; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+										<span>🌐</span> <?php echo esc_html__( 'Google Search Result Snippet', 'post-export-import-with-media' ); ?>
+									</strong>
+									<div style="display: inline-flex; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; font-size: 11.5px;">
+										<button type="button" class="peiwm-seo-modal-serp-toggle active" data-view="desktop" style="padding: 3px 9px; border: none; background: #0284c7; color: #fff; cursor: pointer; font-weight: 600;">Desktop</button>
+										<button type="button" class="peiwm-seo-modal-serp-toggle" data-view="mobile" style="padding: 3px 9px; border: none; background: #f8fafc; color: #64748b; cursor: pointer; font-weight: 600;">Mobile</button>
+									</div>
+								</div>
+
+								<div id="peiwm-seo-modal-serp-box" style="padding: 14px 16px; background: #fafafa; border: 1px solid #e5e7eb; border-radius: 8px;">
+									<div id="peiwm-seo-modal-serp-url" style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #4b5563; margin-bottom: 4px;">
+										<span style="display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #e2e8f0; text-align: center; font-size: 9px; line-height: 14px;">⚡</span>
+										<span id="peiwm-seo-modal-serp-domain"><?php echo esc_html( wp_parse_url( home_url(), PHP_URL_HOST ) ?: 'mysite.com' ); ?></span>
+										<span>›</span>
+										<span id="peiwm-seo-modal-serp-slug" style="color: #6b7280;">slug</span>
+									</div>
+									<div id="peiwm-seo-modal-serp-title" style="font-size: 18px; color: #1a0dab; font-weight: 400; line-height: 1.3; margin-bottom: 4px;">
+										Title
+									</div>
+									<div id="peiwm-seo-modal-serp-desc" style="font-size: 13.5px; color: #4d5156; line-height: 1.5;">
+										Description
+									</div>
+								</div>
+
+								<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; font-size: 11.5px; color: #64748b;">
+									<div>
+										<div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+											<span>Title Pixel Width: <strong id="peiwm-seo-modal-title-px">0px</strong> / 600px</span>
+											<span id="peiwm-seo-modal-title-status" style="font-weight: 600;">--</span>
+										</div>
+										<div style="width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden;">
+											<div id="peiwm-seo-modal-title-bar" style="width: 0%; height: 100%; background: #10b981;"></div>
+										</div>
+									</div>
+									<div>
+										<div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+											<span>Description Length: <strong id="peiwm-seo-modal-desc-len">0</strong> / 160 chars</span>
+											<span id="peiwm-seo-modal-desc-status" style="font-weight: 600;">--</span>
+										</div>
+										<div style="width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; overflow: hidden;">
+											<div id="peiwm-seo-modal-desc-bar" style="width: 0%; height: 100%; background: #10b981;"></div>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<!-- Instant SEO Quick-Fix Editor (Solve Issues Right Here) -->
+							<div class="peiwm-seo-quickfix-card" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 18px 20px; margin-bottom: 20px;">
+								<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 1px solid #dcfce7; padding-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+									<strong style="font-size: 14px; color: #166534; display: flex; align-items: center; gap: 7px;">
+										<span>⚡</span> <?php echo esc_html__( 'Instant SEO Quick-Fix & Metadata Editor', 'post-export-import-with-media' ); ?>
+									</strong>
+									<span style="font-size: 11.5px; color: #15803d; font-weight: 600;">
+										<?php echo esc_html__( 'Saves to your active SEO plugin (Rank Math, Yoast, AIOSEO, etc.)', 'post-export-import-with-media' ); ?>
+									</span>
+								</div>
+
+								<form id="peiwm-seo-quickfix-form" onsubmit="return false;">
+									<input type="hidden" id="peiwm-seo-fix-post-id" value="0">
+
+									<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px;">
+										<div>
+											<label for="peiwm-seo-fix-keyword" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin-bottom: 4px;">
+												<?php echo esc_html__( 'Focus Keyword:', 'post-export-import-with-media' ); ?>
+											</label>
+											<input type="text" id="peiwm-seo-fix-keyword" placeholder="<?php esc_attr_e( 'e.g. best woocommerce booster', 'post-export-import-with-media' ); ?>" style="width: 100%; padding: 7px 12px; border-radius: 6px; border: 1px solid #86efac; font-size: 13px; background: #fff;" />
+										</div>
+
+										<div>
+											<label for="peiwm-seo-fix-title" style="display: block; font-size: 12px; font-weight: 600; color: #1e293b; margin-bottom: 4px;">
+												<?php echo esc_html__( 'SEO Title:', 'post-export-import-with-media' ); ?>
+											</label>
+											<input type="text" id="peiwm-seo-fix-title" placeholder="<?php esc_attr_e( 'Custom SEO Title for Google SERP', 'post-export-import-with-media' ); ?>" style="width: 100%; padding: 7px 12px; border-radius: 6px; border: 1px solid #86efac; font-size: 13px; background: #fff;" />
+										</div>
+									</div>
+
+									<div style="margin-bottom: 14px;">
+										<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+											<label for="peiwm-seo-fix-desc" style="font-size: 12px; font-weight: 600; color: #1e293b;">
+												<?php echo esc_html__( 'Meta Description:', 'post-export-import-with-media' ); ?>
+											</label>
+											<span style="font-size: 11px; color: #64748b;">
+												<span id="peiwm-seo-fix-desc-counter">0</span> / 160 <?php echo esc_html__( 'chars recommended', 'post-export-import-with-media' ); ?>
+											</span>
+										</div>
+										<textarea id="peiwm-seo-fix-desc" rows="3" placeholder="<?php esc_attr_e( 'Compelling search snippet description containing your focus keyword...', 'post-export-import-with-media' ); ?>" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #86efac; font-size: 13px; background: #fff;"></textarea>
+									</div>
+
+									<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+										<div id="peiwm-seo-fix-status" style="font-size: 12.5px; font-weight: 600; display: none;"></div>
+										<div style="margin-left: auto; display: flex; gap: 8px;">
+											<button type="button" id="peiwm-seo-save-fix-btn" class="button button-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 18px; font-weight: 600; background: #ffffff; border-color: #ffffff; color: #000000; border-radius: 10px; ">
+												<span id="peiwm-seo-save-spinner" class="peiwm-loading-spinner" style="width: 14px; height: 14px; display: none;"></span>
+												<span></span> <?php echo esc_html__( 'Save & Recalculate Score', 'post-export-import-with-media' ); ?>
+											</button>
+										</div>
+									</div>
+								</form>
+							</div>
+
+							<!-- Grid: Keyword Distribution & Checks Breakdown -->
+							<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 18px; margin-bottom: 20px;">
+								<!-- Keyword Distribution -->
+								<div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 18px;">
+									<strong style="font-size: 13.5px; color: #1e293b; display: block; margin-bottom: 12px;">
+										🗺️ <?php echo esc_html__( 'Keyword Distribution Across Post', 'post-export-import-with-media' ); ?>
+									</strong>
+									<div id="peiwm-seo-modal-dist-list" style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+										<!-- Populated via JS -->
+									</div>
+								</div>
+
+								<!-- Detailed Check Items -->
+								<div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 18px;">
+									<strong style="font-size: 13.5px; color: #1e293b; display: block; margin-bottom: 12px;">
+										📋 <?php echo esc_html__( 'Audit Checklist & Recommendations', 'post-export-import-with-media' ); ?>
+									</strong>
+									<div id="peiwm-seo-modal-checklist" style="max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px;">
+										<!-- Populated via JS -->
+									</div>
+								</div>
+							</div>
+
+							<!-- Image ALT Audit Section (Quick-Fix Editable) -->
+							<div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 18px;">
+								<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+									<strong style="font-size: 13.5px; color: #1e293b;">
+										🖼️ <?php echo esc_html__( 'Embedded Images & ALT Attribute Audit', 'post-export-import-with-media' ); ?>
+									</strong>
+									<span id="peiwm-seo-modal-img-summary" style="font-size: 12px; color: #64748b;">
+										<!-- e.g. 1 image, 1 missing ALT -->
+									</span>
+								</div>
+								<div id="peiwm-seo-modal-img-table-wrap" class="peiwm-drag-scroll-wrap" style="max-height: 240px; overflow-y: auto; overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 6px;">
+									<table class="widefat striped" style="font-size: 12px; min-width: 600px;">
+										<thead>
+											<tr>
+												<th style="width: 55px;"><?php echo esc_html__( 'Image', 'post-export-import-with-media' ); ?></th>
+												<th style="width: 170px;"><?php echo esc_html__( 'File & Source', 'post-export-import-with-media' ); ?></th>
+												<th><?php echo esc_html__( 'ALT Attribute (Quick-Fix)', 'post-export-import-with-media' ); ?></th>
+												<th style="width: 140px; text-align: right;"><?php echo esc_html__( 'Status & Fix', 'post-export-import-with-media' ); ?></th>
+											</tr>
+										</thead>
+										<tbody id="peiwm-seo-modal-img-tbody">
+											<!-- Populated dynamically -->
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<div class="peiwm-modal-footer" style="padding: 14px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+						<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+							<a id="peiwm-seo-modal-view-link" href="#" target="_blank" class="button" style="display: inline-flex; align-items: center; gap: 5px;">
+								<span>🌐</span> <?php echo esc_html__( 'View Live Post', 'post-export-import-with-media' ); ?>
+							</a>
+							<a id="peiwm-seo-modal-edit-link" href="#" target="_blank" class="button" style="display: inline-flex; align-items: center; gap: 5px;">
+								<span>✏️</span> <?php echo esc_html__( 'Edit Post in WordPress', 'post-export-import-with-media' ); ?>
+							</a>
+						</div>
+						<div style="display: flex; gap: 10px;">
+							<button type="button" class="button button-primary peiwm-modal-close" style="font-weight: 600;">
+								<?php echo esc_html__( 'Done & Close', 'post-export-import-with-media' ); ?>
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Bulk Assign Focus Keyword Modal (PRO) -->
+			<div id="peiwm-seo-bulk-kw-modal" class="peiwm-modal-overlay" style="display: none;">
+				<div class="peiwm-modal" style="max-width: 520px; width: 95%;">
+					<div class="peiwm-modal-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding: 16px 20px; background: #f8fafc;">
+						<div style="display: flex; align-items: center; gap: 10px;">
+							<div style="width: 32px; height: 32px; border-radius: 6px; background: #0284c7; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px;">
+								🏷️
+							</div>
+							<h3 style="margin: 0; font-size: 15px; font-weight: 700; color: #1e293b;">
+								<?php echo esc_html__( 'Bulk Set Focus Keyword', 'post-export-import-with-media' ); ?>
+							</h3>
+						</div>
+						<button type="button" class="peiwm-modal-close" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #94a3b8; line-height: 1;">&times;</button>
+					</div>
+
+					<div class="peiwm-modal-body" style="padding: 20px;">
+						<p style="font-size: 13px; color: #475569; margin: 0 0 14px 0; line-height: 1.5;">
+							<?php echo esc_html__( 'Assign a primary focus keyword to all selected posts at once. The plugin will update your active SEO plugin (Rank Math, Yoast, AIOSEO, SEOPress, or Core) and recalculate health scores automatically.', 'post-export-import-with-media' ); ?>
+						</p>
+
+						<div style="margin-bottom: 14px;">
+							<label for="peiwm-seo-bulk-input-kw" style="display: block; font-size: 12.5px; font-weight: 600; color: #1e293b; margin-bottom: 6px;">
+								<?php echo esc_html__( 'Target Focus Keyword:', 'post-export-import-with-media' ); ?>
+							</label>
+							<input type="text" id="peiwm-seo-bulk-input-kw" placeholder="<?php esc_attr_e( 'e.g. best woocommerce speed plugin', 'post-export-import-with-media' ); ?>" style="width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px;" />
+						</div>
+
+						<div id="peiwm-seo-bulk-target-summary" style="padding: 10px 14px; background: #f1f5f9; border-radius: 6px; font-size: 12px; color: #475569;">
+							<!-- Dynamic target post count info -->
+						</div>
+					</div>
+
+					<div class="peiwm-modal-footer" style="padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
+						<button type="button" class="button peiwm-modal-close">
+							<?php echo esc_html__( 'Cancel', 'post-export-import-with-media' ); ?>
+						</button>
+						<button type="button" id="peiwm-seo-bulk-apply-btn" class="button button-primary" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600;">
+							<span id="peiwm-seo-bulk-spinner" class="peiwm-loading-spinner" style="width: 14px; height: 14px; display: none;"></span>
+							<?php echo esc_html__( 'Apply to Selected Posts', 'post-export-import-with-media' ); ?>
+						</button>
+					</div>
+				</div>
+			</div>
+
+		</div>
+		<?php
 		$this->render_modal_templates();
 	}
 

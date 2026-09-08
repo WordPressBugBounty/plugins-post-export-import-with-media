@@ -165,7 +165,7 @@ class PEIWM_Media_Audit_Review_Page {
 							<th><?php echo esc_html__( 'Title / Media Details', 'post-export-import-with-media' ); ?></th>
 							<th style="width: 110px;"><?php echo esc_html__( 'Risk Level', 'post-export-import-with-media' ); ?></th>
 							<th style="width: 100px;"><?php echo esc_html__( 'Confidence', 'post-export-import-with-media' ); ?></th>
-							<th style="width: 240px; text-align: right;"><?php echo esc_html__( 'Actions', 'post-export-import-with-media' ); ?></th>
+							<th class="peiwm-shrink-actions" style="width: 240px; text-align: right;"><?php echo esc_html__( 'Actions', 'post-export-import-with-media' ); ?></th>
 						</tr>
 					</thead>
 					<tbody id="peiwm-review-tbody">
