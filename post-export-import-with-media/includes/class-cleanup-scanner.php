@@ -461,16 +461,24 @@ class PEIWM_Cleanup_Scanner {
 	public function ajax_fix_duplicate_slugs() {
 		$this->verify_security();
 
+		$slugs    = isset( $_POST['slugs'] ) && is_array( $_POST['slugs'] ) ? $_POST['slugs'] : array();
 		$post_ids = isset( $_POST['post_ids'] ) && is_array( $_POST['post_ids'] )
 			? array_map( 'absint', $_POST['post_ids'] )
 			: array();
 
+		// Merge post IDs from slugs map if provided
+		if ( ! empty( $slugs ) ) {
+			$slug_keys = array_map( 'absint', array_keys( $slugs ) );
+			$post_ids  = array_unique( array_merge( $post_ids, $slug_keys ) );
+		}
+
 		if ( empty( $post_ids ) ) {
-			wp_send_json_error( array( 'message' => esc_html__( 'No post IDs provided.', 'post-export-import-with-media' ) ) );
+			wp_send_json_error( array( 'message' => esc_html__( 'No post IDs or slugs provided.', 'post-export-import-with-media' ) ) );
 		}
 
 		global $wpdb;
 		$updated = 0;
+		$details = array();
 
 		foreach ( $post_ids as $pid ) {
 			$post = get_post( $pid );
@@ -478,10 +486,16 @@ class PEIWM_Cleanup_Scanner {
 				continue;
 			}
 
-			// Strip numeric duplicate suffixes (e.g. 'my-post-2' -> 'my-post')
-			$base_slug = preg_replace( '/-[0-9]+$/', '', $post->post_name );
-			if ( empty( $base_slug ) ) {
-				$base_slug = sanitize_title( $post->post_title );
+			// If admin specified a custom slug for this post
+			if ( isset( $slugs[ $pid ] ) && '' !== trim( $slugs[ $pid ] ) ) {
+				$custom_raw = sanitize_title( wp_unslash( $slugs[ $pid ] ) );
+				$base_slug  = ! empty( $custom_raw ) ? $custom_raw : sanitize_title( $post->post_title );
+			} else {
+				// Fallback: Strip numeric duplicate suffixes (e.g. 'my-post-2' -> 'my-post')
+				$base_slug = preg_replace( '/-[0-9]+$/', '', $post->post_name );
+				if ( empty( $base_slug ) ) {
+					$base_slug = sanitize_title( $post->post_title );
+				}
 			}
 
 			// Generate canonical unique slug
@@ -497,12 +511,18 @@ class PEIWM_Cleanup_Scanner {
 				);
 				clean_post_cache( $pid );
 				$updated++;
+				$details[] = array(
+					'id'       => $pid,
+					'old_slug' => $post->post_name,
+					'new_slug' => $new_slug,
+				);
 			}
 		}
 
 		wp_send_json_success( array(
-			'message' => sprintf( esc_html__( 'Successfully regenerated and cleaned slugs for %d post(s).', 'post-export-import-with-media' ), $updated ),
+			'message' => sprintf( esc_html__( 'Successfully updated slug(s) for %d post(s).', 'post-export-import-with-media' ), $updated ),
 			'updated' => $updated,
+			'details' => $details,
 		) );
 	}
 

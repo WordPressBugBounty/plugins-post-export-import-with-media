@@ -4,7 +4,7 @@ Tags: export-media, import, post-export, page-export, migration
 Requires at least: 6.7
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable Tag: 1.17.0
+Stable Tag: 1.17.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -305,6 +305,11 @@ Use the support forum on this plugin's WordPress.org page. Include your WordPres
 
 == Changelog ==
 
+= 1.17.1 – 11 September 2026 =
+* **Fix:** Fixe theme and plugin toolkit missing menu isuses  
+* **Fix:** Fixed the Deduplicate Slugs Issues 
+* **Fix:** Resolved large media export download failures
+
 = 1.17.0 – 08 September 2026 =
 * **New:** Post SEO Analysis & Diff Tab (Post Tools & Migration Suite)
 * **New:** Import Status Logic (Global + Override)
@@ -325,40 +330,5 @@ Use the support forum on this plugin's WordPress.org page. Include your WordPres
 * **New:** Media Title & ALT Editor interface overhaul with CSV import/export workflow support.
 * **Improvement:** Gated destructive media operations (single & bulk trashing) to PRO version with seamless modal upgrade triggers.
 * **Fix:** Enqueued and localized peiwm_ajax parameters across all Media Audit sub-pages.
-
-= 1.15.1 - 21 August 2026 =
-- Fixed compatibility with WordPress 7.1
-
-= 1.15.0 – 31 July 2026 =
-* **New:** Fresh, revamped UI for easier exports and imports 
-
-= 1.14.1 – 29 July 2026 =
-* **Fix:** Fixed minor bug in Export and Media Statistics Memory Exhaustion on large sites
-* **improvements:** Export and Media Statistics Memory Exhaustion bug fixed 
-* **Improvement:** Optimized memory usage for all export processes
-
-= 1.14.0 – 24 July 2026 =
-* **New:** Added Image Matching Strategy with three modes:
-  * Verify only fallback matches – Verify only filename-based matches for faster imports.
-  * Verify all matches – Verify file size for every match to prevent duplicate filename mismatches.
-  * Always download fresh – Always download images from the source without reusing existing media.
-* **New:** Added option to link reused media to imported posts by updating the Media Library **Uploaded to** relationship.
-* **Improved:** * Update SDK 
-
-= 1.13.2 – 08 July 2026 =
-* **Fix:** Resolved password hash query issues.
-* **Fix:** Improved security by hardening the exports directory.
-* **Fix:** Implemented unguessable export filenames using random tokens and directory hardening.
-* **Fix:** Added destination file extension re-validation before file copy operations.
-* **Fix:** Addressed additional Plugin Check (PCP) issues and code quality improvements.
-
-= 1.13.1 – 26 June 2026 =
-* **Fix:** Fixed an issue where imported images could reference the wrong image size.
-* **Fix:** Added logic to skip importing duplicate post titles when the content and slug do not match.
-
-= 1.13.0 – 10 June 2026 =
-* **New:** Added Internal link support when export/Import
-* **New:** Added  CPT & ACF and Users export types in Scheduled Exports
-* **Fix:** Added support for Advanced Custom Fields (ACF) Repeater fields in posts and pages. 
 
 For the full changelog, see changelog.txt in the plugin SVN repository.

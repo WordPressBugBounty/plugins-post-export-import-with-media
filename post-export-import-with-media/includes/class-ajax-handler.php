@@ -489,6 +489,120 @@ class PEIWM_Ajax_Handler {
 	}
 
 	/**
+	 * Stream file download with chunked transfer and HTTP Range support
+	 *
+	 * Handles large files (20MB - 2GB+) cleanly without memory exhaustion
+	 * or server buffering timeouts. Supports resumable downloads.
+	 *
+	 * @param string $full_path     Absolute path to the file on disk.
+	 * @param string $safe_filename Sanitized filename for Content-Disposition.
+	 * @param string $content_type  MIME type (e.g. 'application/zip' or 'application/json').
+	 */
+	public function stream_file_download( $full_path, $safe_filename, $content_type = 'application/zip' ) {
+		if ( ! file_exists( $full_path ) || ! is_readable( $full_path ) ) {
+			wp_die( esc_html__( 'File not found or unreadable', 'post-export-import-with-media' ) );
+		}
+
+		// Disable all PHP output buffering so chunks go directly to client/server buffer
+		while ( ob_get_level() > 0 ) {
+			@ob_end_clean();
+		}
+
+		// Disable compression & buffering in web server / PHP
+		if ( function_exists( 'apache_setenv' ) ) {
+			@apache_setenv( 'no-gzip', '1' );
+		}
+		if ( function_exists( 'ini_set' ) ) {
+			@ini_set( 'zlib.output_compression', 'Off' );
+			@ini_set( 'output_buffering', 'Off' );
+			@ini_set( 'implicit_flush', '1' );
+		}
+
+		// Close active PHP session to prevent session lock from blocking parallel requests
+		if ( function_exists( 'session_write_close' ) && session_id() ) {
+			session_write_close();
+		}
+
+		// Increase execution and memory limits
+		@set_time_limit( 0 );
+		@ini_set( 'memory_limit', '512M' );
+
+		$file_size = (float) filesize( $full_path );
+		$start     = 0;
+		$end       = $file_size - 1;
+		$is_range  = false;
+
+		// Support HTTP Range requests for resumable downloads
+		if ( isset( $_SERVER['HTTP_RANGE'] ) && preg_match( '/bytes=\h*(\d+)-(\d*)[\D.*]?/i', sanitize_text_field( wp_unslash( $_SERVER['HTTP_RANGE'] ) ), $matches ) ) {
+			$start = (float) $matches[1];
+			if ( ! empty( $matches[2] ) ) {
+				$end = (float) $matches[2];
+			}
+			if ( $start <= $end && $start < $file_size ) {
+				$is_range = true;
+			} else {
+				status_header( 416 ); // Range Not Satisfiable
+				header( "Content-Range: bytes */{$file_size}" );
+				exit;
+			}
+		}
+
+		$length = ( $end - $start ) + 1;
+
+		if ( $is_range ) {
+			status_header( 206 ); // Partial Content
+			header( "Content-Range: bytes {$start}-{$end}/{$file_size}" );
+		} else {
+			status_header( 200 );
+		}
+
+		// Headers
+		header( 'Content-Type: ' . $content_type );
+		header( 'Content-Disposition: attachment; filename="' . $safe_filename . '"' );
+		header( 'Content-Length: ' . sprintf( '%.0f', $length ) );
+		header( 'Accept-Ranges: bytes' );
+		header( 'Content-Transfer-Encoding: binary' );
+		header( 'Cache-Control: private, must-revalidate, post-check=0, pre-check=0' );
+		header( 'Pragma: public' );
+		header( 'Expires: 0' );
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen
+		$handle = fopen( $full_path, 'rb' );
+		if ( false === $handle ) {
+			wp_die( esc_html__( 'Unable to open file for streaming', 'post-export-import-with-media' ) );
+		}
+
+		if ( $start > 0 ) {
+			fseek( $handle, (int) $start );
+		}
+
+		// Use 1MB chunks (1,048,576 bytes) for optimal throughput with low context-switching overhead
+		$chunk_size      = 1024 * 1024;
+		$bytes_remaining = $length;
+
+		while ( ! feof( $handle ) && $bytes_remaining > 0 && ! connection_aborted() ) {
+			@set_time_limit( 300 ); // Refresh timeout per chunk
+
+			$bytes_to_read = ( $bytes_remaining > $chunk_size ) ? $chunk_size : (int) $bytes_remaining;
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread
+			$chunk = fread( $handle, $bytes_to_read );
+			if ( false === $chunk || '' === $chunk ) {
+				break;
+			}
+
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Binary file stream
+			echo $chunk;
+			@flush();
+
+			$bytes_remaining -= strlen( $chunk );
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+		fclose( $handle );
+		exit;
+	}
+
+	/**
 	 * Download exported posts
 	 */
 	public function download_export_posts() {
@@ -506,27 +620,11 @@ class PEIWM_Ajax_Handler {
 			wp_die( esc_html__( 'File not specified', 'post-export-import-with-media' ) );
 		}
 
-		$upload_dir = wp_upload_dir();
-		$full_path = $upload_dir['basedir'] . '/peiwm-exports/' . basename( $file_path );
-
-		if ( ! file_exists( $full_path ) ) {
-			wp_die( esc_html__( 'File not found', 'post-export-import-with-media' ) );
-		}
-
-		// SECURITY FIX: Sanitize filename for header to prevent header injection
+		$upload_dir    = wp_upload_dir();
+		$full_path     = $upload_dir['basedir'] . '/peiwm-exports/' . basename( $file_path );
 		$safe_filename = preg_replace( '/[^a-zA-Z0-9._-]/', '', basename( $file_path ) );
 
-		// Set headers for download
-		header( 'Content-Type: application/json' );
-		header( 'Content-Disposition: attachment; filename="' . $safe_filename . '"' );
-		header( 'Content-Length: ' . filesize( $full_path ) );
-		header( 'Cache-Control: no-cache, must-revalidate' );
-		header( 'Expires: 0' );
-
-		// Output file
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Direct readfile is required to stream large JSON exports directly to the browser without memory exhaustion.
-		readfile( $full_path );
-		exit;
+		$this->stream_file_download( $full_path, $safe_filename, 'application/json' );
 	}
 
 	/**
@@ -547,50 +645,12 @@ class PEIWM_Ajax_Handler {
 			wp_die( esc_html__( 'File not specified', 'post-export-import-with-media' ) );
 		}
 
-		$upload_dir = wp_upload_dir();
-		$full_path = $upload_dir['basedir'] . '/peiwm-exports/' . basename( $file_path );
-
-		if ( ! file_exists( $full_path ) ) {
-			wp_die( esc_html__( 'File not found', 'post-export-import-with-media' ) );
-		}
-
-		// SECURITY FIX: Sanitize filename for header to prevent header injection
+		$upload_dir    = wp_upload_dir();
+		$full_path     = $upload_dir['basedir'] . '/peiwm-exports/' . basename( $file_path );
 		$safe_filename = preg_replace( '/[^a-zA-Z0-9._-]/', '', basename( $file_path ) );
 
-		// Increase limits for large file downloads
-		@set_time_limit( 0 );
-		@ini_set( 'memory_limit', '512M' );
-
-		// Set headers for download
-		header( 'Content-Type: application/zip' );
-		header( 'Content-Disposition: attachment; filename="' . $safe_filename . '"' );
-		header( 'Content-Length: ' . filesize( $full_path ) );
-		header( 'Cache-Control: no-cache, must-revalidate' );
-		header( 'Expires: 0' );
-
-		// For large files, use chunked reading to avoid memory issues
-		$file_size = filesize( $full_path );
-		if ( $file_size > 10 * 1024 * 1024 ) { // If file is larger than 10MB
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- Direct fopen is required to chunk-read large ZIP files without loading them into memory.
-			$handle = fopen( $full_path, 'rb' );
-			if ( $handle ) {
-				while ( ! feof( $handle ) ) {
-					// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fread -- Chunk reading large files.
-					echo fread( $handle, 8192 ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Binary file stream output, escaping would corrupt the file
-					flush();
-				}
-				// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Closing chunk reader.
-				fclose( $handle );
-			}
-		} else {
-			// For smaller files, use readfile
-			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile -- Direct readfile is required to stream large ZIP exports directly to the browser without memory exhaustion.
-			readfile( $full_path );
-		}
-		exit;
+		$this->stream_file_download( $full_path, $safe_filename, 'application/zip' );
 	}
-
-
 
 	/**
 	 * Download exported users JSON
@@ -611,23 +671,11 @@ class PEIWM_Ajax_Handler {
 			wp_die( esc_html__( 'File not specified', 'post-export-import-with-media' ) );
 		}
 
-		$upload_dir = wp_upload_dir();
-		$full_path  = $upload_dir['basedir'] . '/peiwm-exports/' . basename( $file_path );
-
-		if ( ! file_exists( $full_path ) ) {
-			wp_die( esc_html__( 'File not found', 'post-export-import-with-media' ) );
-		}
-
-		// SECURITY FIX: Sanitize filename for header to prevent header injection
+		$upload_dir    = wp_upload_dir();
+		$full_path     = $upload_dir['basedir'] . '/peiwm-exports/' . basename( $file_path );
 		$safe_filename = preg_replace( '/[^a-zA-Z0-9._-]/', '', basename( $file_path ) );
 
-		header( 'Content-Type: application/json' );
-		header( 'Content-Disposition: attachment; filename="' . $safe_filename . '"' );
-		header( 'Content-Length: ' . filesize( $full_path ) );
-		header( 'Cache-Control: no-cache, must-revalidate' );
-		header( 'Expires: 0' );
-		readfile( $full_path ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile
-		exit;
+		$this->stream_file_download( $full_path, $safe_filename, 'application/json' );
 	}
 
 	/**

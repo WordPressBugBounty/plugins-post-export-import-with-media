@@ -229,6 +229,16 @@ class PEIWM_Admin_Menu {
 			array( $this, 'users_page' )
 		);
 
+		// Add themes & plugins submenu
+		add_submenu_page(
+			'peiwm-secure',
+			esc_html__( 'Themes & Plugins', 'post-export-import-with-media' ),
+			esc_html__( 'Themes & Plugins', 'post-export-import-with-media' ),
+			'manage_options',
+			'peiwm-themes-plugins',
+			array( $this, 'themes_plugins_page' )
+		);
+
 		// Add settings submenu
 		add_submenu_page(
 			'peiwm-secure',
@@ -332,18 +342,26 @@ class PEIWM_Admin_Menu {
 		// Post Tools page
 		if ( strpos( $hook, 'peiwm-post-tools' ) !== false ) {
 			wp_enqueue_media();
+
+			$use_src_js  = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) || ( file_exists( PEIWM_PLUGIN_PATH . 'assets/js/admin.js' ) && ( ! file_exists( PEIWM_PLUGIN_PATH . 'build/js/admin.min.js' ) || filemtime( PEIWM_PLUGIN_PATH . 'assets/js/admin.js' ) > filemtime( PEIWM_PLUGIN_PATH . 'build/js/admin.min.js' ) ) );
+			$use_src_css = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) || ( file_exists( PEIWM_PLUGIN_PATH . 'assets/css/admin.css' ) && ( ! file_exists( PEIWM_PLUGIN_PATH . 'build/css/admin.min.css' ) || filemtime( PEIWM_PLUGIN_PATH . 'assets/css/admin.css' ) > filemtime( PEIWM_PLUGIN_PATH . 'build/css/admin.min.css' ) ) );
+
+			$admin_js_url  = $use_src_js ? PEIWM_PLUGIN_URL . 'assets/js/admin.js' : PEIWM_PLUGIN_URL . 'build/js/admin.min.js';
+			$admin_css_url = $use_src_css ? PEIWM_PLUGIN_URL . 'assets/css/admin.css' : PEIWM_PLUGIN_URL . 'build/css/admin.min.css';
+			$admin_ver     = ( defined( 'WP_DEBUG' ) && WP_DEBUG ) ? time() : PEIWM_VERSION;
+
 			wp_enqueue_style(
 				'peiwm-admin-css',
-				PEIWM_PLUGIN_URL . 'build/css/admin.min.css',
+				$admin_css_url,
 				array(),
-				PEIWM_VERSION
+				$admin_ver
 			);
 
 			wp_enqueue_script(
 				'peiwm-admin-js',
-				PEIWM_PLUGIN_URL . 'build/js/admin.min.js',
+				$admin_js_url,
 				array( 'jquery' ),
-				PEIWM_VERSION,
+				$admin_ver,
 				true
 			);
 
@@ -1339,7 +1357,7 @@ class PEIWM_Admin_Menu {
 													printf(
 														/* translators: 1: opening <a> tag to WP Toolkit settings page, 2: closing </a> tag */
 														esc_html__( "If the original author doesn't exist on the destination site, select 'Automatically create missing users' — it will create the user with the same username and email address as the original author. Alternatively, export and import users separately using the dedicated User Export/Import feature before importing posts. Visit %1\$sWP Toolkit > Settings%2\$s to configure the auto-generated password.", 'post-export-import-with-media' ),
-														'<a href="' . esc_url( admin_url( 'admin.php?page=peiwm-themes-plugins' ) ) . '">',
+														'<a href="' . esc_url( admin_url( 'admin.php?page=peiwm-post-tools#tab-toolkit' ) ) . '">',
 														'</a>'
 													);
 													?>
@@ -2685,105 +2703,6 @@ class PEIWM_Admin_Menu {
 					</div>
 				</div>
 
-				<!-- Settings Section -->
-				<div class="peiwm-section" style="grid-column: 1 / -1;">
-					<div class="panel-head">
-						<div class="panel-title">
-							<div class="panel-icon posts">
-								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-							</div>
-							<div>
-								<h3><?php echo esc_html__( 'Settings', 'post-export-import-with-media' ); ?></h3>
-								<span>Settings Export/Import</span>
-							</div>
-						</div>
-					</div>
-					
-					<div class="peiwm-settings-section peiwm-settings-section-container">
-						<form method="post" action="options.php">
-							<?php settings_fields( 'peiwm_settings' ); ?>
-
-							<?php
-							// Declare once — shared by all locked sections in this form
-							$main_instance = PEIWM_Main::get_instance();
-							$is_pro        = $main_instance->is_pro_active(); // Just an UI lock, its not a functional lock. 
-							$locked        = ! $is_pro ? ' peiwm-locked-section' : '';
-							?>
-
-							<div class="panel" style="padding:20px 22px 22px;margin-bottom:24px;">
-								<h3 style="font-size:15px;margin-bottom:14px;"><?php echo esc_html__( 'Settings', 'post-export-import-with-media' ); ?></h3>
-								
-								<div class="settings-row row-between">
-									<div>
-										<b><?php echo esc_html__( 'Admin download buttons', 'post-export-import-with-media' ); ?></b>
-										<p><?php echo esc_html__( 'Add download buttons to WordPress Themes and Plugins pages.', 'post-export-import-with-media' ); ?></p>
-									</div>
-									<label class="toggle">
-										<input type="hidden" name="peiwm_enable_admin_download_buttons" value="0">
-										<input type="checkbox" name="peiwm_enable_admin_download_buttons" value="1" <?php checked( get_option( 'peiwm_enable_admin_download_buttons', false ) ); ?>>
-										<span class="slider"></span>
-									</label>
-								</div>
-								
-								<div class="settings-row <?php echo esc_attr( $locked ); ?>" style="position: relative;">
-									<?php if ( ! $is_pro ) : ?>
-										<button type="button" class="peiwm-pro-upgrade-overlay peiwm-open-premium-modal">
-											<span class="peiwm-pro-upgrade-badge">🔒 <?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span>
-										</button>
-									<?php endif; ?>
-									<b><?php echo esc_html__( 'Allowed media file types', 'post-export-import-with-media' ); ?></b>
-									<p style="margin-bottom:10px;"><?php echo esc_html__( 'Files with extensions not in this list will be blocked for security.', 'post-export-import-with-media' ); ?></p>
-									<div class="row-between" style="margin-bottom:8px;">
-										<span style="font-size:12.5px;"><?php echo esc_html__( 'Allow all file types (bypass validation)', 'post-export-import-with-media' ); ?></span>
-										<label class="toggle">
-											<input type="hidden" name="peiwm_allow_all_file_types" value="0">
-											<input type="checkbox" name="peiwm_allow_all_file_types" value="1" <?php checked( get_option( 'peiwm_allow_all_file_types', false ) ); ?> <?php echo ! $is_pro ? 'disabled' : ''; ?>>
-											<span class="slider"></span>
-										</label>
-									</div>
-									<div class="field">
-										<input type="text" 
-											id="peiwm_allowed_media_file_types"
-											name="peiwm_allowed_media_file_types"
-											value="<?php echo esc_attr( get_option( 'peiwm_allowed_media_file_types', 'jpg,jpeg,png,gif,webp,svg,json,pdf,mp4,mp3,wav,doc,docx,txt' ) ); ?>"
-											placeholder="jpg,jpeg,png,gif,webp,svg,json,pdf,mp4,mp3,wav,doc,docx,txt"
-											<?php echo ! $is_pro ? 'disabled' : ''; ?>>
-										<p class="hint"><?php echo esc_html__( 'Enter file extensions separated by commas. Common additions: odt (spreadsheets), mov (videos), xlsx, pptx, zip.', 'post-export-import-with-media' ); ?></p>
-									</div>
-								</div>
-								
-								<div class="settings-row <?php echo esc_attr( $locked ); ?>" style="position: relative;">
-									<?php if ( ! $is_pro ) : ?>
-										<button type="button" class="peiwm-pro-upgrade-overlay peiwm-open-premium-modal">
-											<span class="peiwm-pro-upgrade-badge">🔒 <?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span>
-										</button>
-									<?php endif; ?>
-									<b><?php echo esc_html__( 'User import defaults', 'post-export-import-with-media' ); ?></b>
-									<p style="margin-bottom:10px;"><?php echo esc_html__( 'Set a default password during post import. A welcome email is sent when a new account is created.', 'post-export-import-with-media' ); ?></p>
-									<div class="field">
-										<label for="peiwm_user_import_default_password"><?php echo esc_html__( 'Default password for imported users', 'post-export-import-with-media' ); ?></label>
-										<input type="text"
-											id="peiwm_user_import_default_password"
-											name="peiwm_user_import_default_password"
-											value="<?php echo esc_attr( get_option( 'peiwm_user_import_default_password', '' ) ); ?>"
-											placeholder="<?php echo esc_attr__( 'Leave blank to auto-generate a secure password per user', 'post-export-import-with-media' ); ?>"
-											<?php echo ! $is_pro ? 'disabled' : ''; ?>>
-									</div>
-									<div class="row-between">
-										<span style="font-size:12.5px;"><?php echo esc_html__( 'Send welcome email to imported users by default', 'post-export-import-with-media' ); ?></span>
-										<label class="toggle">
-											<input type="hidden" name="peiwm_user_import_send_email" value="0">
-											<input type="checkbox" name="peiwm_user_import_send_email" value="1" <?php checked( get_option( 'peiwm_user_import_send_email', false ) ); ?> <?php echo ! $is_pro ? 'disabled' : ''; ?>>
-											<span class="slider"></span>
-										</label>
-									</div>
-								</div>
-								
-								<button type="submit" class="btn btn-primary" style="margin-top:16px;"><?php echo esc_html__( 'Save Changes', 'post-export-import-with-media' ); ?></button>
-							</div>
-						</form>
-					</div>
-				</div>
 
 				<div class="peiwm-section peiwm-faq-section" id="peiwm-faq-section" style="grid-column: 1 / -1;">
 
@@ -4026,6 +3945,13 @@ class PEIWM_Admin_Menu {
 					</svg>
 					<?php echo esc_html__( 'Post SEO Analysis', 'post-export-import-with-media' ); ?>
 					<?php if ( ! $is_pro ) : ?><span class="peiwm-pro-lock"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -1px; margin-right: 2px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span><?php endif; ?>
+				</button>
+				<button type="button" class="peiwm-pt-tab-btn" data-tab="toolkit">
+					<svg class="peiwm-pt-tab-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+						<circle cx="12" cy="12" r="3"/>
+					</svg>
+					<?php echo esc_html__( 'Toolkit Settings', 'post-export-import-with-media' ); ?>
 				</button>
 			</div>
 
@@ -5592,13 +5518,121 @@ class PEIWM_Admin_Menu {
 				</div>
 			</div>
 
+			<!-- TAB 10: TOOLKIT SETTINGS -->
+			<div class="peiwm-pt-tab-pane" id="peiwm-pane-toolkit" style="display: none;">
+				<div class="peiwm-section" style="margin-bottom: 24px;">
+					<div class="panel-head">
+						<div class="panel-title">
+							<div class="panel-icon posts" style="background: rgba(217, 119, 6, 0.1); color: #b45309;">
+								<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+									<circle cx="12" cy="12" r="3"/>
+								</svg>
+							</div>
+							<div>
+								<h3 style="margin: 0; font-size: 17px; font-weight: 600; color: #1e293b;">
+									<?php echo esc_html__( 'Toolkit Settings', 'post-export-import-with-media' ); ?>
+								</h3>
+								<span style="font-size: 13px; color: #64748b;">
+									<?php echo esc_html__( 'Configure global migration preferences, admin download buttons, allowed media file types, and user import defaults.', 'post-export-import-with-media' ); ?>
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="peiwm-settings-section peiwm-settings-section-container" style="margin-top: 16px;">
+						<form method="post" action="options.php">
+							<?php settings_fields( 'peiwm_settings' ); ?>
+
+							<?php
+							$main_instance = PEIWM_Main::get_instance();
+							$is_pro        = $main_instance->is_pro_active();
+							$locked        = ! $is_pro ? ' peiwm-locked-section' : '';
+							?>
+
+							<div class="panel" style="padding:20px 22px 22px;margin-bottom:24px;">
+								<h3 style="font-size:15px;margin-bottom:14px;"><?php echo esc_html__( 'General Preferences', 'post-export-import-with-media' ); ?></h3>
+								
+								<div class="settings-row row-between">
+									<div>
+										<b><?php echo esc_html__( 'Admin download buttons', 'post-export-import-with-media' ); ?></b>
+										<p><?php echo esc_html__( 'Add download buttons to WordPress Themes and Plugins pages.', 'post-export-import-with-media' ); ?></p>
+									</div>
+									<label class="toggle">
+										<input type="hidden" name="peiwm_enable_admin_download_buttons" value="0">
+										<input type="checkbox" name="peiwm_enable_admin_download_buttons" value="1" <?php checked( get_option( 'peiwm_enable_admin_download_buttons', false ) ); ?>>
+										<span class="slider"></span>
+									</label>
+								</div>
+								
+								<div class="settings-row <?php echo esc_attr( $locked ); ?>" style="position: relative;">
+									<?php if ( ! $is_pro ) : ?>
+										<button type="button" class="peiwm-pro-upgrade-overlay peiwm-open-premium-modal">
+											<span class="peiwm-pro-upgrade-badge">🔒 <?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span>
+										</button>
+									<?php endif; ?>
+									<b><?php echo esc_html__( 'Allowed media file types', 'post-export-import-with-media' ); ?></b>
+									<p style="margin-bottom:10px;"><?php echo esc_html__( 'Files with extensions not in this list will be blocked for security.', 'post-export-import-with-media' ); ?></p>
+									<div class="row-between" style="margin-bottom:8px;">
+										<span style="font-size:12.5px;"><?php echo esc_html__( 'Allow all file types (bypass validation)', 'post-export-import-with-media' ); ?></span>
+										<label class="toggle">
+											<input type="hidden" name="peiwm_allow_all_file_types" value="0">
+											<input type="checkbox" name="peiwm_allow_all_file_types" value="1" <?php checked( get_option( 'peiwm_allow_all_file_types', false ) ); ?> <?php echo ! $is_pro ? 'disabled' : ''; ?>>
+											<span class="slider"></span>
+										</label>
+									</div>
+									<div class="field">
+										<input type="text" 
+											id="peiwm_allowed_media_file_types"
+											name="peiwm_allowed_media_file_types"
+											value="<?php echo esc_attr( get_option( 'peiwm_allowed_media_file_types', 'jpg,jpeg,png,gif,webp,svg,json,pdf,mp4,mp3,wav,doc,docx,txt' ) ); ?>"
+											placeholder="jpg,jpeg,png,gif,webp,svg,json,pdf,mp4,mp3,wav,doc,docx,txt"
+											<?php echo ! $is_pro ? 'disabled' : ''; ?>>
+										<p class="hint"><?php echo esc_html__( 'Enter file extensions separated by commas. Common additions: odt (spreadsheets), mov (videos), xlsx, pptx, zip.', 'post-export-import-with-media' ); ?></p>
+									</div>
+								</div>
+								
+								<div class="settings-row <?php echo esc_attr( $locked ); ?>" style="position: relative;">
+									<?php if ( ! $is_pro ) : ?>
+										<button type="button" class="peiwm-pro-upgrade-overlay peiwm-open-premium-modal">
+											<span class="peiwm-pro-upgrade-badge">🔒 <?php echo esc_html__( 'PRO', 'post-export-import-with-media' ); ?></span>
+										</button>
+									<?php endif; ?>
+									<b><?php echo esc_html__( 'User import defaults', 'post-export-import-with-media' ); ?></b>
+									<p style="margin-bottom:10px;"><?php echo esc_html__( 'Set a default password during post import. A welcome email is sent when a new account is created.', 'post-export-import-with-media' ); ?></p>
+									<div class="field">
+										<label for="peiwm_user_import_default_password"><?php echo esc_html__( 'Default password for imported users', 'post-export-import-with-media' ); ?></label>
+										<input type="text"
+											id="peiwm_user_import_default_password"
+											name="peiwm_user_import_default_password"
+											value="<?php echo esc_attr( get_option( 'peiwm_user_import_default_password', '' ) ); ?>"
+											placeholder="<?php echo esc_attr__( 'Leave blank to auto-generate a secure password per user', 'post-export-import-with-media' ); ?>"
+											<?php echo ! $is_pro ? 'disabled' : ''; ?>>
+									</div>
+									<div class="row-between">
+										<span style="font-size:12.5px;"><?php echo esc_html__( 'Send welcome email to imported users by default', 'post-export-import-with-media' ); ?></span>
+										<label class="toggle">
+											<input type="hidden" name="peiwm_user_import_send_email" value="0">
+											<input type="checkbox" name="peiwm_user_import_send_email" value="1" <?php checked( get_option( 'peiwm_user_import_send_email', false ) ); ?> <?php echo ! $is_pro ? 'disabled' : ''; ?>>
+											<span class="slider"></span>
+										</label>
+									</div>
+								</div>
+								
+								<button type="submit" class="btn btn-primary" style="margin-top:16px;"><?php echo esc_html__( 'Save Changes', 'post-export-import-with-media' ); ?></button>
+							</div>
+						</form>
+					</div>
+				</div>
+			</div>
+
 			<!-- Synchronous Instant Tab Activation (Zero Blink on Reload) -->
 			<script>
 				(function () {
 					try {
 						var hashTab = (window.location.hash || '').replace(/^#tab-|^#/, '');
 						var savedTab = hashTab || localStorage.getItem('peiwm_active_post_tools_tab') || 'internal-links';
-						var validTabs = ['internal-links', 'find-replace', 'post-compare', 'post-cleanup', 'missing-media', 'duplicate-detector', 'orphaned-posts', 'post-diff', 'seo-analysis'];
+						var validTabs = ['internal-links', 'find-replace', 'post-compare', 'post-cleanup', 'missing-media', 'duplicate-detector', 'orphaned-posts', 'post-diff', 'seo-analysis', 'toolkit'];
 						if (validTabs.indexOf(savedTab) === -1) {
 							savedTab = 'internal-links';
 						}
@@ -5612,6 +5646,35 @@ class PEIWM_Admin_Menu {
 					} catch (e) {}
 				})();
 			</script>
+
+			<!-- Resolve Duplicate Slugs Modal (Global Top-Level) -->
+			<div id="peiwm-resolve-slugs-modal" class="peiwm-modal-overlay" style="display: none;">
+				<div class="peiwm-modal" style="max-width: 660px; width: 100%;">
+					<div class="peiwm-modal-header" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding: 16px 20px;">
+						<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+							<span>📑</span> <span><?php echo esc_html__( 'Resolve Duplicate / Suffixed Slugs', 'post-export-import-with-media' ); ?></span>
+						</h3>
+						<button type="button" class="peiwm-modal-close" style="background: none; border: none; font-size: 22px; cursor: pointer; color: #64748b; line-height: 1;">&times;</button>
+					</div>
+					<div class="peiwm-modal-body" style="padding: 18px 20px;">
+						<div id="peiwm-slug-modal-target-desc" style="font-size: 13px; color: #334155; margin-bottom: 14px; padding: 10px 14px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+							<?php echo esc_html__( 'Set a unique slug for each post below. Each slug will be validated and updated in WordPress.', 'post-export-import-with-media' ); ?>
+						</div>
+
+						<div id="peiwm-slug-modal-list" style="max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px;">
+							<!-- Dynamically populated rows -->
+						</div>
+					</div>
+					<div class="peiwm-modal-footer" style="padding: 14px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
+						<button type="button" class="button peiwm-modal-close">
+							<?php echo esc_html__( 'Cancel', 'post-export-import-with-media' ); ?>
+						</button>
+						<button type="button" id="peiwm-slug-modal-save-btn" class="button button-primary" style="font-weight: 600; background: #d97706; border-color: #d97706;">
+							<?php echo esc_html__( 'Update Slugs', 'post-export-import-with-media' ); ?>
+						</button>
+					</div>
+				</div>
+			</div>
 
 			<!-- Assign Category & Tag Modal (Global Top-Level) -->
 			<div id="peiwm-assign-category-modal" class="peiwm-modal-overlay" style="display: none;">

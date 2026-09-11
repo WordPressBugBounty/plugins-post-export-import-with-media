@@ -773,6 +773,10 @@ class PEIWM_Batch_Processor {
 					
 					if ( $zip_result ) {
 						$added_files++;
+
+						if ( 0 === ( $added_files % 50 ) ) {
+							@set_time_limit( 300 );
+						}
 						
 						// Export all image sizes if requested - check by mime type
 						if ( $export_all_sizes && strpos( $attachment->post_mime_type, 'image/' ) === 0 && ! empty( $attachment->metadata ) ) {
