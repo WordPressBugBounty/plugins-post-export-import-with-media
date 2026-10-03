@@ -124,10 +124,16 @@ class PEIWM_Media_Handler {
 	private function init_ajax_hooks() {
 		add_action( 'wp_ajax_peiwm_export_media', array( $this, 'ajax_export_media' ) );
 		add_action( 'wp_ajax_peiwm_import_media_start', array( $this, 'ajax_import_media_start' ) );
+		add_action( 'wp_ajax_peiwm_import_media_upload', array( $this, 'ajax_import_media_upload' ) );
+		add_action( 'wp_ajax_peiwm_import_media_extract_chunk', array( $this, 'ajax_import_media_extract_chunk' ) );
+		add_action( 'wp_ajax_peiwm_import_media_finalize', array( $this, 'ajax_import_media_finalize' ) );
 		add_action( 'wp_ajax_peiwm_import_media_file', array( $this, 'ajax_import_media_file' ) );
 		add_action( 'wp_ajax_peiwm_delete_media', array( $this, 'ajax_delete_media' ) );
 		add_action( 'wp_ajax_peiwm_cleanup_media_batch', array( $this, 'ajax_cleanup_media_batch' ) );
 		add_action( 'wp_ajax_peiwm_get_upload_limits', array( $this, 'ajax_get_upload_limits' ) );
+
+		// Background thumbnail regeneration hook
+		add_action( 'peiwm_regen_thumbnail', array( $this, 'regenerate_thumbnail_background' ) );
 	}
 
 	/**
@@ -362,6 +368,9 @@ class PEIWM_Media_Handler {
 			wp_send_json_error( array( 'message' => esc_html__( 'Permission denied', 'post-export-import-with-media' ) ) );
 		}
 
+		@set_time_limit( 300 );
+		@ini_set( 'memory_limit', '512M' );
+
 		try {
 			// Validate file upload
 			if ( ! isset( $_FILES['media_file'] ) ) {
@@ -408,13 +417,7 @@ class PEIWM_Media_Handler {
 
 			/**
 			 * SECURITY: harden the temp directory immediately, before any ZIP
-			 * content is extracted into it. This directory lives inside
-			 * wp-content/uploads/ (web-accessible on most hosts), so even if
-			 * a dangerous file slipped past the extension checks below, it
-			 * must not be directly requestable or executable as PHP while it
-			 * sits here awaiting import/cleanup.
-			 *
-			 * @since 1.13.2
+			 * content is extracted into it.
 			 */
 			$this->harden_directory( $temp_dir );
 
@@ -428,7 +431,6 @@ class PEIWM_Media_Handler {
 			}
 			
 			// Use move_uploaded_file for better compatibility on Windows
-			// phpcs:ignore Generic.PHP.ForbiddenFunctions.Found -- Source is validated via is_uploaded_file() above. WP_Filesystem::move() is unreliable for PHP's transient upload temp path when the host runs FTP/SSH filesystem mode, which would break uploads on those hosts.
 			if ( ! move_uploaded_file( $uploaded_file['tmp_name'], $zip_file ) ) {
 				$this->delete_directory_secure( $temp_dir );
 				throw new Exception( esc_html__( 'Failed to move uploaded file', 'post-export-import-with-media' ) );
@@ -445,7 +447,6 @@ class PEIWM_Media_Handler {
 				) );
 			}
 
-			// SECURITY FIX: Manually extract files with validation instead of extractTo()
 			$allow_all_types = get_option( 'peiwm_allow_all_file_types', false );
 			$allowed_extensions_option = get_option( 'peiwm_allowed_media_file_types', 'jpg,jpeg,png,gif,webp,svg,json,pdf,mp4,mp3,wav,doc,docx,txt' );
 			$allowed_extensions = array_map( 'trim', explode( ',', strtolower( $allowed_extensions_option ) ) );
@@ -453,65 +454,55 @@ class PEIWM_Media_Handler {
 			$blocked_files = array();
 			
 			for ( $i = 0; $i < $zip->numFiles; $i++ ) {
+				if ( 0 === ( $i % 50 ) ) {
+					@set_time_limit( 120 );
+				}
+
 				$file_info = $zip->statIndex( $i );
 				$filename = $file_info['name'];
 				
 				// SECURITY FIX: Prevent path traversal
-				if ( strpos( $filename, '..' ) !== false || strpos( $filename, '/' ) === 0 ) {
-					// error_log( 'PEIWM Security: Blocked path traversal attempt in media ZIP: ' . $filename );
-					continue; // Skip files with path traversal attempts
+				if ( strpos( $filename, '..' ) !== false || strpos( $filename, '/' ) === 0 || strpos( $filename, '\\' ) === 0 ) {
+					continue;
 				}
 				
-				/**
-				 * SECURITY FIX (1.13.2): Resolve the extension from the
-				 * SANITIZED filename via resolve_safe_extension(), not from
-				 * pathinfo() on the raw ZIP entry name. The previous check
-				 * used pathinfo( $filename, PATHINFO_EXTENSION ) directly on
-				 * attacker-controlled names like "shell.php." — PHP's
-				 * pathinfo() returns '' for a trailing-dot name, so
-				 * !empty( $file_ext ) was false and the guard was skipped
-				 * entirely, while sanitize_file_name() later stripped the
-				 * trailing dot back down to "shell.php" on disk. Resolving
-				 * the extension from the sanitized name up front closes that
-				 * gap, and an empty resolved extension is now treated as
-				 * "no extension" and BLOCKED rather than allowed through.
-				 */
 				$resolved_ext = $this->resolve_safe_extension( $filename );
 
-				// Always refuse dangerous executable extensions, even if
-				// "allow all file types" is enabled — this option is meant
-				// to relax the allow-list for ordinary media types, not to
-				// permit server-side executables.
 				if ( in_array( $resolved_ext, self::$always_blocked_extensions, true ) ) {
-					// error_log( 'PEIWM Security: Blocked dangerous extension in media ZIP: ' . $filename );
 					$blocked_files[] = $filename;
 					continue;
 				}
 
 				// SECURITY FIX: Validate file extension (unless "allow all" is enabled)
-				if ( ! $allow_all_types ) {
+				if ( ! $allow_all_types && 'media_metadata.json' !== basename( $filename ) ) {
 					if ( empty( $resolved_ext ) || ! in_array( $resolved_ext, $allowed_extensions, true ) ) {
-						// error_log( 'PEIWM Security: Blocked disallowed file type in media ZIP: ' . $filename );
 						$blocked_files[] = $filename;
-						continue; // Skip disallowed file types
+						continue;
 					}
 				}
 				
-				// Extract file
-				$target_path = $temp_dir . DIRECTORY_SEPARATOR . $filename;
+				$target_path = $temp_dir . DIRECTORY_SEPARATOR . str_replace( array( '/', '\\' ), DIRECTORY_SEPARATOR, $filename );
 				
-				// Create directory if needed
+				if ( ! $file_info['size'] && substr( $filename, -1 ) === '/' ) {
+					wp_mkdir_p( $target_path );
+					continue;
+				}
+
 				$target_dir = dirname( $target_path );
 				if ( ! is_dir( $target_dir ) ) {
 					wp_mkdir_p( $target_dir );
 				}
 				
-				// Extract file or create directory
-				if ( ! $file_info['size'] ) {
-					// Directory
-					wp_mkdir_p( $target_path );
+				// Stream extraction
+				$stream = $zip->getStream( $filename );
+				if ( false !== $stream ) {
+					$dest = fopen( $target_path, 'wb' );
+					if ( false !== $dest ) {
+						stream_copy_to_stream( $stream, $dest );
+						fclose( $dest );
+					}
+					fclose( $stream );
 				} else {
-					// File
 					$file_content = $zip->getFromIndex( $i );
 					if ( $file_content !== false ) {
 						file_put_contents( $target_path, $file_content );
@@ -547,6 +538,314 @@ class PEIWM_Media_Handler {
 			}
 
 			// Store batch info securely
+			set_transient( 'peiwm_media_batch_' . $batch_id, array(
+				'temp_dir'      => $temp_dir,
+				'media_data'    => $media_data,
+				'blocked_files' => $blocked_files,
+				'created'       => time(),
+			), HOUR_IN_SECONDS );
+
+			wp_send_json_success( array(
+				'batch_id'      => $batch_id,
+				'total_files'   => count( $media_data ),
+				'blocked_files' => $blocked_files,
+				'blocked_count' => count( $blocked_files ),
+			) );
+
+		} catch ( Exception $e ) {
+			wp_send_json_error( array( 'message' => $e->getMessage() ) );
+		}
+	}
+
+	/**
+	 * AJAX: Upload media ZIP only (Phase 1 of chunked import)
+	 *
+	 * Uploads and stores the ZIP in a hardened temp directory without extracting,
+	 * completely eliminating server timeouts on upload.
+	 */
+	public function ajax_import_media_upload() {
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'peiwm_secure_nonce' ) ) {
+			wp_send_json_error( array( 'message' => esc_html__( 'Security check failed', 'post-export-import-with-media' ) ) );
+		}
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => esc_html__( 'Permission denied', 'post-export-import-with-media' ) ) );
+		}
+
+		try {
+			@set_time_limit( 300 );
+
+			if ( ! isset( $_FILES['media_file'] ) ) {
+				throw new Exception( esc_html__( 'No file uploaded', 'post-export-import-with-media' ) );
+			}
+
+			if ( ! class_exists( 'ZipArchive' ) ) {
+				throw new Exception( esc_html__( 'ZipArchive class is not available on this server', 'post-export-import-with-media' ) );
+			}
+
+			$uploaded_file = array(
+				'name'     => isset( $_FILES['media_file']['name'] ) ? sanitize_file_name( wp_unslash( $_FILES['media_file']['name'] ) ) : '',
+				'type'     => isset( $_FILES['media_file']['type'] ) ? sanitize_mime_type( wp_unslash( $_FILES['media_file']['type'] ) ) : '',
+				// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- tmp_name is a system-generated path, sanitization could break it.
+				'tmp_name' => isset( $_FILES['media_file']['tmp_name'] ) ? $_FILES['media_file']['tmp_name'] : '',
+				'error'    => isset( $_FILES['media_file']['error'] ) ? absint( $_FILES['media_file']['error'] ) : UPLOAD_ERR_NO_FILE,
+				'size'     => isset( $_FILES['media_file']['size'] ) ? absint( $_FILES['media_file']['size'] ) : 0,
+			);
+
+			if ( $uploaded_file['error'] !== UPLOAD_ERR_OK ) {
+				$error_msg = $this->get_upload_error_message( $uploaded_file['error'] );
+				throw new Exception( $error_msg );
+			}
+
+			$this->validate_uploaded_file( $uploaded_file );
+
+			$upload_dir = wp_upload_dir();
+			$batch_id   = wp_generate_uuid4();
+			$temp_dir   = $upload_dir['basedir'] . DIRECTORY_SEPARATOR . 'temp_' . sanitize_file_name( $batch_id );
+
+			if ( ! is_writable( $upload_dir['basedir'] ) ) {
+				throw new Exception( esc_html__( 'Upload directory is not writable', 'post-export-import-with-media' ) );
+			}
+
+			if ( ! wp_mkdir_p( $temp_dir ) ) {
+				throw new Exception( esc_html__( 'Failed to create temporary directory', 'post-export-import-with-media' ) );
+			}
+
+			$this->harden_directory( $temp_dir );
+
+			$zip_file = $temp_dir . DIRECTORY_SEPARATOR . 'media.zip';
+
+			if ( ! file_exists( $uploaded_file['tmp_name'] ) || ! is_uploaded_file( $uploaded_file['tmp_name'] ) ) {
+				$this->delete_directory_secure( $temp_dir );
+				throw new Exception( esc_html__( 'Temporary file not found or invalid', 'post-export-import-with-media' ) );
+			}
+
+			if ( ! move_uploaded_file( $uploaded_file['tmp_name'], $zip_file ) ) {
+				$this->delete_directory_secure( $temp_dir );
+				throw new Exception( esc_html__( 'Failed to move uploaded file', 'post-export-import-with-media' ) );
+			}
+
+			$zip = new ZipArchive();
+			$zip_result = $zip->open( $zip_file );
+			if ( true !== $zip_result ) {
+				$this->delete_directory_secure( $temp_dir );
+				throw new Exception( sprintf(
+					esc_html__( 'Failed to open ZIP file - file may be corrupted (Error: %d)', 'post-export-import-with-media' ),
+					$zip_result
+				) );
+			}
+
+			$total_entries = $zip->numFiles;
+			$zip->close();
+
+			set_transient( 'peiwm_media_batch_' . $batch_id, array(
+				'temp_dir'        => $temp_dir,
+				'zip_file'        => $zip_file,
+				'total_zip_files' => $total_entries,
+				'extracted_count' => 0,
+				'blocked_files'   => array(),
+				'created'         => time(),
+			), HOUR_IN_SECONDS );
+
+			wp_send_json_success( array(
+				'batch_id'    => $batch_id,
+				'total_files' => $total_entries,
+				'file_size'   => $uploaded_file['size'],
+			) );
+
+		} catch ( Exception $e ) {
+			wp_send_json_error( array( 'message' => $e->getMessage() ) );
+		}
+	}
+
+	/**
+	 * AJAX: Extract ZIP chunk (Phase 2 of chunked import)
+	 *
+	 * Extracts up to chunk_size files using stream extraction and security checks.
+	 */
+	public function ajax_import_media_extract_chunk() {
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'peiwm_secure_nonce' ) ) {
+			wp_send_json_error( array( 'message' => esc_html__( 'Security check failed', 'post-export-import-with-media' ) ) );
+		}
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => esc_html__( 'Permission denied', 'post-export-import-with-media' ) ) );
+		}
+
+		try {
+			@set_time_limit( 120 );
+
+			$batch_id   = isset( $_POST['batch_id'] ) ? sanitize_text_field( wp_unslash( $_POST['batch_id'] ) ) : '';
+			$offset     = isset( $_POST['offset'] ) ? absint( wp_unslash( $_POST['offset'] ) ) : 0;
+			$chunk_size = isset( $_POST['chunk_size'] ) ? absint( wp_unslash( $_POST['chunk_size'] ) ) : 35;
+			if ( $chunk_size < 5 ) {
+				$chunk_size = 35;
+			}
+
+			if ( empty( $batch_id ) ) {
+				throw new Exception( esc_html__( 'Invalid batch ID', 'post-export-import-with-media' ) );
+			}
+
+			$batch_data = get_transient( 'peiwm_media_batch_' . $batch_id );
+			if ( ! $batch_data || ! isset( $batch_data['temp_dir'] ) || ! isset( $batch_data['zip_file'] ) ) {
+				throw new Exception( esc_html__( 'Batch not found or expired', 'post-export-import-with-media' ) );
+			}
+
+			$temp_dir      = $batch_data['temp_dir'];
+			$zip_file      = $batch_data['zip_file'];
+			$blocked_files = isset( $batch_data['blocked_files'] ) ? (array) $batch_data['blocked_files'] : array();
+
+			if ( ! file_exists( $zip_file ) ) {
+				throw new Exception( esc_html__( 'ZIP file not found in temporary directory', 'post-export-import-with-media' ) );
+			}
+
+			$zip = new ZipArchive();
+			$zip_result = $zip->open( $zip_file );
+			if ( true !== $zip_result ) {
+				throw new Exception( sprintf(
+					esc_html__( 'Failed to open ZIP file (Error: %d)', 'post-export-import-with-media' ),
+					$zip_result
+				) );
+			}
+
+			$total_files = $zip->numFiles;
+			$end_index   = min( $offset + $chunk_size, $total_files );
+
+			$allow_all_types           = (bool) get_option( 'peiwm_allow_all_file_types', false );
+			$allowed_extensions_option = get_option( 'peiwm_allowed_media_file_types', 'jpg,jpeg,png,gif,webp,svg,json,pdf,mp4,mp3,wav,doc,docx,txt' );
+			$allowed_extensions        = array_map( 'trim', explode( ',', strtolower( $allowed_extensions_option ) ) );
+
+			for ( $i = $offset; $i < $end_index; $i++ ) {
+				$file_info = $zip->statIndex( $i );
+				if ( ! $file_info ) {
+					continue;
+				}
+				$filename = $file_info['name'];
+
+				// Security check: path traversal
+				if ( strpos( $filename, '..' ) !== false || strpos( $filename, '/' ) === 0 || strpos( $filename, '\\' ) === 0 ) {
+					continue;
+				}
+
+				$resolved_ext = $this->resolve_safe_extension( $filename );
+
+				// Always block dangerous executable extensions
+				if ( in_array( $resolved_ext, self::$always_blocked_extensions, true ) ) {
+					$blocked_files[] = $filename;
+					continue;
+				}
+
+				$target_path = $temp_dir . DIRECTORY_SEPARATOR . str_replace( array( '/', '\\' ), DIRECTORY_SEPARATOR, $filename );
+
+				// If directory, create it
+				if ( ! $file_info['size'] && substr( $filename, -1 ) === '/' ) {
+					wp_mkdir_p( $target_path );
+					continue;
+				}
+
+				// Validate file extension for files (unless allow all is enabled)
+				if ( ! $allow_all_types && 'media_metadata.json' !== basename( $filename ) ) {
+					if ( empty( $resolved_ext ) || ! in_array( $resolved_ext, $allowed_extensions, true ) ) {
+						$blocked_files[] = $filename;
+						continue;
+					}
+				}
+
+				$target_dir = dirname( $target_path );
+				if ( ! is_dir( $target_dir ) ) {
+					wp_mkdir_p( $target_dir );
+				}
+
+				// Stream extraction
+				$stream = $zip->getStream( $filename );
+				if ( false !== $stream ) {
+					$dest = fopen( $target_path, 'wb' );
+					if ( false !== $dest ) {
+						stream_copy_to_stream( $stream, $dest );
+						fclose( $dest );
+					}
+					fclose( $stream );
+				} else {
+					$file_content = $zip->getFromIndex( $i );
+					if ( false !== $file_content ) {
+						file_put_contents( $target_path, $file_content );
+					}
+				}
+			}
+
+			$zip->close();
+
+			$is_done = ( $end_index >= $total_files );
+			if ( $is_done && file_exists( $zip_file ) ) {
+				@unlink( $zip_file );
+			}
+
+			$batch_data['blocked_files']   = $blocked_files;
+			$batch_data['extracted_count'] = $end_index;
+			set_transient( 'peiwm_media_batch_' . $batch_id, $batch_data, HOUR_IN_SECONDS );
+
+			wp_send_json_success( array(
+				'done'          => $is_done,
+				'processed'     => $end_index,
+				'next_offset'   => $end_index,
+				'total_files'   => $total_files,
+				'blocked_count' => count( $blocked_files ),
+			) );
+
+		} catch ( Exception $e ) {
+			wp_send_json_error( array( 'message' => $e->getMessage() ) );
+		}
+	}
+
+	/**
+	 * AJAX: Finalize media extraction and read metadata (Phase 3 of chunked import)
+	 */
+	public function ajax_import_media_finalize() {
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'peiwm_secure_nonce' ) ) {
+			wp_send_json_error( array( 'message' => esc_html__( 'Security check failed', 'post-export-import-with-media' ) ) );
+		}
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => esc_html__( 'Permission denied', 'post-export-import-with-media' ) ) );
+		}
+
+		try {
+			$batch_id = isset( $_POST['batch_id'] ) ? sanitize_text_field( wp_unslash( $_POST['batch_id'] ) ) : '';
+
+			if ( empty( $batch_id ) ) {
+				throw new Exception( esc_html__( 'Invalid batch ID', 'post-export-import-with-media' ) );
+			}
+
+			$batch_data = get_transient( 'peiwm_media_batch_' . $batch_id );
+			if ( ! $batch_data || ! isset( $batch_data['temp_dir'] ) ) {
+				throw new Exception( esc_html__( 'Batch not found or expired', 'post-export-import-with-media' ) );
+			}
+
+			$temp_dir      = $batch_data['temp_dir'];
+			$blocked_files = isset( $batch_data['blocked_files'] ) ? (array) $batch_data['blocked_files'] : array();
+
+			$metadata_file = $temp_dir . DIRECTORY_SEPARATOR . 'media_metadata.json';
+			if ( ! file_exists( $metadata_file ) ) {
+				$this->delete_directory_secure( $temp_dir );
+				throw new Exception( esc_html__( 'Invalid media export file - metadata not found', 'post-export-import-with-media' ) );
+			}
+
+			$metadata_content = file_get_contents( $metadata_file );
+			$media_data       = json_decode( $metadata_content, true );
+
+			if ( json_last_error() !== JSON_ERROR_NONE ) {
+				$this->delete_directory_secure( $temp_dir );
+				throw new Exception( sprintf(
+					esc_html__( 'Invalid JSON in metadata file: %s', 'post-export-import-with-media' ),
+					json_last_error_msg()
+				) );
+			}
+
+			if ( ! is_array( $media_data ) ) {
+				$this->delete_directory_secure( $temp_dir );
+				throw new Exception( esc_html__( 'Invalid media data format', 'post-export-import-with-media' ) );
+			}
+
 			set_transient( 'peiwm_media_batch_' . $batch_id, array(
 				'temp_dir'      => $temp_dir,
 				'media_data'    => $media_data,
@@ -604,16 +903,43 @@ class PEIWM_Media_Handler {
 			// Use the file_path from metadata which includes the directory structure
 			// Handle old metadata that might not have file_path
 			$file_path = isset( $file_data['file_path'] ) ? $file_data['file_path'] : $file_data['filename'];
+
+			// SECURITY FIX (CWE-22): Validate file_path from metadata does not escape temp_dir.
+			// The file_path field comes from attacker-controlled media_metadata.json; if it contains
+			// traversal sequences like "../../../wp-config.php", an attacker with admin access could
+			// read arbitrary files from the server. Block all traversal indicators BEFORE path construction,
+			// then use realpath() to verify the resolved absolute path is strictly inside temp_dir.
+			if (
+				strpos( $file_path, '..' ) !== false ||
+				strpos( $file_path, "\0" ) !== false ||
+				strpos( $file_path, '\\' ) !== false ||
+				( ! empty( $file_path ) && $file_path[0] === '/' ) ||
+				( strlen( $file_path ) > 1 && $file_path[1] === ':' ) // Windows absolute path like C:\
+			) {
+				throw new Exception( esc_html__( 'Invalid file path in import metadata - path traversal detected.', 'post-export-import-with-media' ) );
+			}
+
 			$relative_file_path = str_replace( '/', DIRECTORY_SEPARATOR, $file_path );
-			$source_file = $temp_dir . DIRECTORY_SEPARATOR . $relative_file_path;
-			
-			if ( ! file_exists( $source_file ) ) {
+			$source_file        = $temp_dir . DIRECTORY_SEPARATOR . $relative_file_path;
+
+			// realpath() resolves all symlinks and ".." segments; returns false if file does not exist.
+			// This provides defense-in-depth against traversal even if the checks above are bypassed.
+			$real_source = realpath( $source_file );
+			$real_temp   = realpath( $temp_dir );
+
+			if ( false === $real_source || false === $real_temp ) {
 				throw new Exception( sprintf(
-					/* translators: 1: filename, 2: source directory path */
-					esc_html__( 'Source file not found: %1$s (looking in: %2$s)', 'post-export-import-with-media' ),
-					$file_data['filename'],
-					$source_file
+					/* translators: 1: filename */
+					esc_html__( 'Source file not found: %1$s', 'post-export-import-with-media' ),
+					$file_data['filename']
 				) );
+			}
+
+			// Strictly enforce that the resolved source path is INSIDE the temp directory.
+			// Use DIRECTORY_SEPARATOR to ensure the check includes the trailing path separator,
+			// preventing matches on prefix-only paths (e.g., temp_abc vs temp_abcd).
+			if ( strpos( $real_source, $real_temp . DIRECTORY_SEPARATOR ) !== 0 ) {
+				throw new Exception( esc_html__( 'Invalid file path in import metadata - file is outside temporary directory.', 'post-export-import-with-media' ) );
 			}
 
 			// Check if file already exists in media library
@@ -934,26 +1260,33 @@ class PEIWM_Media_Handler {
 	private function import_media_file_secure( $source_file, $file_data ) {
 		global $wp_filesystem;
 
-		// Get upload directory and use the original file path structure
+		// Get upload directory
 		$upload_dir = wp_upload_dir();
 		
-		// Use the original file path from metadata to maintain directory structure
-		// Handle old metadata that might not have file_path
-		$original_path = isset( $file_data['file_path'] ) ? $file_data['file_path'] : $file_data['filename'];
-		$target_subdir = dirname( $original_path ); // e.g., "2025/11"
+		// SECURITY FIX (CWE-22): NEVER derive the target directory from file_path (attacker-controlled).
+		// An attacker could craft a file_path like "../../../var/www/html/leaked.txt" and use dirname()
+		// to control the destination directory, writing files outside wp-content/uploads.
+		// 
+		// SAFE APPROACH: Always derive target subdirectory from upload_date, which produces a strict
+		// YYYY/MM pattern that cannot escape uploads/. This preserves the intended year/month structure
+		// from the export without allowing directory traversal.
+		$upload_date = isset( $file_data['upload_date'] ) && ! empty( $file_data['upload_date'] )
+					   ? $file_data['upload_date']
+					   : '';
 		
-		// If dirname returns '.' (current directory), use current date structure
-		if ( $target_subdir === '.' || empty( $target_subdir ) ) {
-			// Use original upload date to preserve year/month directory structure.
-			// upload_date is exported in media_data[] — use it before falling back to current date.
-			$upload_date   = isset( $file_data['upload_date'] ) && ! empty( $file_data['upload_date'] )
-							 ? $file_data['upload_date']
-							 : '';
-			$target_subdir = ! empty( $upload_date )
-							 ? gmdate( 'Y/m', strtotime( $upload_date ) )
-							 : gmdate( 'Y/m' ); // Last resort: no date info available
-			$original_path = $target_subdir . '/' . $file_data['filename'];
+		$target_subdir = ! empty( $upload_date )
+						 ? gmdate( 'Y/m', strtotime( $upload_date ) )
+						 : gmdate( 'Y/m' );
+		
+		// Validate target_subdir is strictly a YYYY/MM pattern — no traversal possible.
+		// If somehow a malformed date produced an invalid pattern, fall back to current date.
+		if ( ! preg_match( '/^\d{4}\/\d{2}$/', $target_subdir ) ) {
+			$target_subdir = gmdate( 'Y/m' );
 		}
+		
+		// Build the safe original_path for metadata storage (YYYY/MM/filename.ext)
+		$safe_filename = sanitize_file_name( $file_data['filename'] );
+		$original_path = $target_subdir . '/' . $safe_filename;
 		
 		// Convert forward slashes to proper directory separators
 		$target_subdir = str_replace( '/', DIRECTORY_SEPARATOR, $target_subdir );
@@ -1041,10 +1374,39 @@ class PEIWM_Media_Handler {
 		$relative_path_for_meta = str_replace( DIRECTORY_SEPARATOR, '/', $original_path );
 		update_post_meta( $attachment_id, '_wp_attached_file', $relative_path_for_meta );
 
-		// Generate attachment metadata
-		require_once ABSPATH . 'wp-admin/includes/image.php';
-		$metadata = wp_generate_attachment_metadata( $attachment_id, $target_file );
-		wp_update_attachment_metadata( $attachment_id, $metadata );
+		// Generate attachment metadata (deferred for raster images to avoid server timeouts)
+		$mime_type = sanitize_mime_type( $file_data['mime_type'] );
+		$is_raster_image = ( 0 === strpos( $mime_type, 'image/' ) && 'image/svg+xml' !== $mime_type );
+
+		if ( $is_raster_image ) {
+			// Fast dimension lookup without heavy GD thumbnail resizing (~1ms)
+			$image_size = function_exists( 'wp_getimagesize' ) ? wp_getimagesize( $target_file ) : @getimagesize( $target_file );
+			$width      = ( ! empty( $image_size[0] ) ) ? absint( $image_size[0] ) : 0;
+			$height     = ( ! empty( $image_size[1] ) ) ? absint( $image_size[1] ) : 0;
+
+			$basic_meta = array(
+				'width'  => $width,
+				'height' => $height,
+				'file'   => $relative_path_for_meta,
+				'sizes'  => array(),
+			);
+			wp_update_attachment_metadata( $attachment_id, $basic_meta );
+			update_post_meta( $attachment_id, '_peiwm_needs_thumbnail_regen', '1' );
+
+			// Schedule thumbnail generation in background
+			if ( function_exists( 'as_schedule_single_action' ) ) {
+				as_schedule_single_action( time(), 'peiwm_regen_thumbnail', array( 'attachment_id' => $attachment_id ) );
+			} else {
+				wp_schedule_single_event( time() + 30, 'peiwm_regen_thumbnail', array( $attachment_id ) );
+			}
+		} else {
+			// Non-images (or SVGs) - metadata generation is fast and has no heavy thumbnail resizing
+			require_once ABSPATH . 'wp-admin/includes/image.php';
+			$metadata = wp_generate_attachment_metadata( $attachment_id, $target_file );
+			if ( ! empty( $metadata ) ) {
+				wp_update_attachment_metadata( $attachment_id, $metadata );
+			}
+		}
 		
 		// Reset global post data after metadata operations
 		wp_reset_postdata();
@@ -1080,5 +1442,27 @@ class PEIWM_Media_Handler {
 		return round( $bytes, 2 ) . ' ' . $units[ $i ];
 	}
 
+	/**
+	 * Background thumbnail regeneration handler
+	 *
+	 * @param int $attachment_id
+	 */
+	public function regenerate_thumbnail_background( $attachment_id ) {
+		$attachment_id = absint( $attachment_id );
+		if ( ! $attachment_id ) {
+			return;
+		}
+
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		$file = get_attached_file( $attachment_id );
+		if ( $file && file_exists( $file ) ) {
+			@set_time_limit( 120 );
+			$metadata = wp_generate_attachment_metadata( $attachment_id, $file );
+			if ( ! empty( $metadata ) && is_array( $metadata ) ) {
+				wp_update_attachment_metadata( $attachment_id, $metadata );
+			}
+			delete_post_meta( $attachment_id, '_peiwm_needs_thumbnail_regen' );
+		}
+	}
 
 }

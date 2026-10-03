@@ -787,9 +787,8 @@ class PEIWM_Post_Handler {
 						return wp_kses( $value, array( 'a' => array( 'href' => array(), 'title' => array() ), 'em' => array(), 'strong' => array() ) );
 					}
 					// Preserve serialized data (ACF repeaters, flexible content, link fields, etc.)
-					// get_post_meta() already unserializes — re-serialize so the JSON carries the
-					// raw DB string which can be written back intact on import.
-					if ( is_array( $value ) || is_object( $value ) ) {
+					// Only serialize arrays — never serialize arbitrary objects.
+					if ( is_array( $value ) ) {
 						return serialize( $value );
 					}
 					// Use wp_kses_post() instead of sanitize_text_field() so WYSIWYG/HTML meta
@@ -861,7 +860,7 @@ class PEIWM_Post_Handler {
 			'page_template' => isset( $post_data['page_template'] ) ? sanitize_file_name( $post_data['page_template'] ) : '',
 			'categories'    => isset( $post_data['categories'] ) && is_array( $post_data['categories'] ) ? $post_data['categories'] : array(),
 			'tags'          => isset( $post_data['tags'] ) && is_array( $post_data['tags'] ) ? $post_data['tags'] : array(),
-			'meta'          => isset( $post_data['meta'] ) && is_array( $post_data['meta'] ) ? $post_data['meta'] : array(),
+			'meta'          => isset( $post_data['meta'] ) && is_array( $post_data['meta'] ) ? $this->sanitize_meta_input( $post_data['meta'] ) : array(),
 			'featured_image' => isset( $post_data['featured_image'] ) ? $post_data['featured_image'] : null,
 			'content_images' => isset( $post_data['content_images'] ) && is_array( $post_data['content_images'] ) ? $post_data['content_images'] : array(),
 			'acf_fields'    => isset( $post_data['acf_fields'] ) && is_array( $post_data['acf_fields'] ) ? $post_data['acf_fields'] : array(),
@@ -922,22 +921,128 @@ class PEIWM_Post_Handler {
 			foreach ( (array) $values as $value ) {
 				// Preserve HTML in SEO meta; handle serialized ACF data; sanitize plain text.
 				if ( $this->is_seo_meta_key( $safe_key ) ) {
-					$clean_value = wp_kses( $value, array( 'a' => array( 'href' => array(), 'title' => array() ), 'em' => array(), 'strong' => array() ) );
-					add_post_meta( $post_id, $safe_key, $clean_value );
+					if ( is_string( $value ) && ! is_serialized( $value ) ) {
+						$clean_value = wp_kses( $value, array( 'a' => array( 'href' => array(), 'title' => array() ), 'em' => array(), 'strong' => array() ) );
+						add_post_meta( $post_id, $safe_key, $clean_value );
+					}
 				} else {
-					// Detect PHP-serialized strings (ACF repeaters, flex content, link fields).
-					// maybe_unserialize() returns the real PHP value when serialized, or the
-					// original string unchanged. WordPress re-serializes arrays/objects automatically.
-					$unserialized = maybe_unserialize( $value );
-					if ( is_array( $unserialized ) || is_object( $unserialized ) ) {
-						add_post_meta( $post_id, $safe_key, $unserialized );
-					} else {
-						// Use wp_kses_post() to preserve HTML from WYSIWYG/wysiwyg ACF fields.
-						add_post_meta( $post_id, $safe_key, wp_kses_post( $value ) );
+					// SECURITY FIX (CWE-502): Never call maybe_unserialize() on untrusted user input.
+					// Parse and sanitize meta values securely without instantiating any PHP classes or objects.
+					$clean_value = $this->sanitize_meta_value_secure( $value );
+					if ( null !== $clean_value ) {
+						add_post_meta( $post_id, $safe_key, $clean_value );
 					}
 				}
 			}
 		}
+	}
+
+	/**
+	 * Sanitize incoming meta input before processing (CWE-502 defense-in-depth).
+	 *
+	 * @param array $meta_data Raw meta array from request.
+	 * @return array Sanitized meta array.
+	 */
+	private function sanitize_meta_input( $meta_data ) {
+		if ( ! is_array( $meta_data ) ) {
+			return array();
+		}
+
+		$sanitized = array();
+		foreach ( $meta_data as $key => $values ) {
+			if ( ! is_scalar( $key ) ) {
+				continue;
+			}
+
+			$clean_key = sanitize_text_field( (string) $key );
+			if ( empty( $clean_key ) ) {
+				continue;
+			}
+
+			$clean_values = array();
+			foreach ( (array) $values as $val ) {
+				// Block any serialized PHP objects immediately (O: or C: indicators)
+				if ( is_string( $val ) && preg_match( '/(^|[;{])[OC]:\+?[0-9]+:"/i', $val ) ) {
+					continue;
+				}
+				$clean_values[] = $val;
+			}
+
+			if ( ! empty( $clean_values ) ) {
+				$sanitized[ $clean_key ] = $clean_values;
+			}
+		}
+
+		return $sanitized;
+	}
+
+	/**
+	 * Safely parse and sanitize a meta value to prevent PHP Object Injection (CWE-502).
+	 * Strictly blocks serialized PHP objects and disables class instantiation.
+	 *
+	 * @param mixed $value Meta value from import payload.
+	 * @return mixed|null Sanitized scalar/array value, or null if blocked/invalid.
+	 */
+	private function sanitize_meta_value_secure( $value ) {
+		// If value is already an array (e.g. decoded from JSON)
+		if ( is_array( $value ) ) {
+			return $this->sanitize_meta_array_recursive( $value );
+		}
+
+		if ( ! is_string( $value ) ) {
+			return is_scalar( $value ) ? $value : null;
+		}
+
+		// Check if the string is serialized data
+		if ( is_serialized( $value ) ) {
+			// SECURITY FIX (CWE-502): Reject any serialized PHP objects immediately.
+			if ( preg_match( '/(^|[;{])[OC]:\+?[0-9]+:"/i', $value ) ) {
+				return null;
+			}
+
+			// Safely unserialize with allowed_classes disabled so NO objects can ever be instantiated
+			$unserialized = @unserialize( $value, array( 'allowed_classes' => false ) );
+
+			if ( false !== $unserialized || 'b:0;' === $value ) {
+				if ( is_array( $unserialized ) ) {
+					return $this->sanitize_meta_array_recursive( $unserialized );
+				}
+				if ( is_string( $unserialized ) ) {
+					return wp_kses_post( $unserialized );
+				}
+				if ( is_scalar( $unserialized ) ) {
+					return $unserialized;
+				}
+			}
+
+			// If it was serialized but could not be safely parsed or contained an object, reject it
+			return null;
+		}
+
+		// Standard string/HTML value (e.g. WYSIWYG/plain text ACF fields)
+		return wp_kses_post( $value );
+	}
+
+	/**
+	 * Recursively sanitize array values and reject any objects.
+	 *
+	 * @param array $array Array to sanitize.
+	 * @return array Sanitized array.
+	 */
+	private function sanitize_meta_array_recursive( array $array ) {
+		$clean = array();
+		foreach ( $array as $k => $v ) {
+			$clean_k = is_string( $k ) ? sanitize_text_field( $k ) : $k;
+
+			if ( is_array( $v ) ) {
+				$clean[ $clean_k ] = $this->sanitize_meta_array_recursive( $v );
+			} elseif ( is_string( $v ) ) {
+				$clean[ $clean_k ] = wp_kses_post( $v );
+			} elseif ( is_scalar( $v ) || is_null( $v ) ) {
+				$clean[ $clean_k ] = $v;
+			}
+		}
+		return $clean;
 	}
 
 	/**

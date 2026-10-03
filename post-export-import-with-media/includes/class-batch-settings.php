@@ -285,11 +285,15 @@ class PEIWM_Batch_Settings {
 
 		// Enqueue batch script if enabled
 		if ( $this->is_batch_enabled() ) {
+			$use_src_js   = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) || ( file_exists( PEIWM_PLUGIN_PATH . 'assets/js/admin-batch.js' ) && ( ! file_exists( PEIWM_PLUGIN_PATH . 'build/js/admin-batch.min.js' ) || filemtime( PEIWM_PLUGIN_PATH . 'assets/js/admin-batch.js' ) > filemtime( PEIWM_PLUGIN_PATH . 'build/js/admin-batch.min.js' ) ) );
+			$batch_js_url = $use_src_js ? PEIWM_PLUGIN_URL . 'assets/js/admin-batch.js' : PEIWM_PLUGIN_URL . 'build/js/admin-batch.min.js';
+			$batch_ver    = ( defined( 'WP_DEBUG' ) && WP_DEBUG ) ? time() : PEIWM_VERSION;
+
 			wp_enqueue_script(
 				'peiwm-batch-admin',
-				PEIWM_PLUGIN_URL . 'build/js/admin-batch.min.js',
+				$batch_js_url,
 				array( 'jquery' ),
-				PEIWM_VERSION,
+				$batch_ver,
 				true
 			);
 

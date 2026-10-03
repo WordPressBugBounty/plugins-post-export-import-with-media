@@ -683,14 +683,6 @@ button#peiwm-export-widgets-menus {
     font-weight: 600;
 }
 
-/* Add icons to buttons */
-.button-primary::before {
-    content: '\2728';
-    position: static;
-    margin-right: 0.5rem;
-    background: none;
-}
-
 /* Progress Bars */
 .peiwm-progress {
     background: var(--bg-card);
@@ -848,38 +840,7 @@ button#peiwm-export-all-cpts {
     letter-spacing: 0.5px;
 }
 
-/* Notifications */
-.peiwm-notification {
-    position: fixed;
-    top: 2rem;
-    right: 2rem;
-    padding: 1.5rem 2rem;
-    border-radius: 16px;
-    color: white;
-    font-weight: 600;
-    z-index: 9999;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    transform: translateX(120%);
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    max-width: 400px;
-    box-shadow: var(--shadow-xl);
-}
-
-.peiwm-notification.peiwm-show {
-    transform: translateX(0);
-}
-
-.peiwm-notification.peiwm-success {
-    background: var(--gradient-success);
-}
-
-.peiwm-notification.peiwm-error {
-    background: var(--gradient-danger);
-}
-
-.peiwm-notification.peiwm-warning {
-    background: var(--gradient-warning);
-}
+/* Notifications (Unified in floating toast section) */
 
 /* File Types */
 .peiwm-file-types {
@@ -1076,7 +1037,7 @@ button#peiwm-export-all-cpts {
 
 @media (prefers-reduced-motion: reduce) {
     .peiwm-refresh-icon {
-        animation: none !important;
+        animation: none;
     }
 }
 
@@ -1620,10 +1581,11 @@ button.peiwm-modal-close.button.button-secondary {
     }
 
     .peiwm-notification {
-        top: 1rem;
-        right: 1rem;
-        left: 1rem;
-        max-width: none;
+        bottom: 1rem !important;
+        right: 1rem !important;
+        left: 1rem !important;
+        top: auto !important;
+        max-width: none !important;
     }
 }
 
@@ -1637,9 +1599,9 @@ input:focus {
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
     * {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms;
+        animation-iteration-count: 1;
+        transition-duration: 0.01ms;
     }
 }
 
@@ -2019,26 +1981,26 @@ input:focus {
 
 /* Admin Download Buttons Styles (for themes.php and plugins.php) */
 .peiwm-download-theme-btn {
-    background: #0073aa !important;
-    color: #fff !important;
-    border: none !important;
-    border-radius: 3px !important;
-    font-size: 11px !important;
-    padding: 4px 8px !important;
-    margin-left: 5px !important;
-    text-decoration: none !important;
-    display: inline-block !important;
-    transition: background-color 0.2s ease !important;
+    background: #0073aa;
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    font-size: 11px;
+    padding: 4px 8px;
+    margin-left: 5px;
+    text-decoration: none;
+    display: inline-block;
+    transition: background-color 0.2s ease;
 }
 
 .peiwm-download-theme-btn:hover {
-    background: #005177 !important;
-    color: #fff !important;
+    background: #005177;
+    color: #fff;
 }
 
 .peiwm-download-theme-btn:disabled {
-    background: #ccc !important;
-    cursor: not-allowed !important;
+    background: #ccc;
+    cursor: not-allowed;
 }
 
 .peiwm-download-plugin {
@@ -2059,8 +2021,8 @@ input:focus {
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .peiwm-download-theme-btn {
-        font-size: 10px !important;
-        padding: 3px 6px !important;
+        font-size: 10px;
+        padding: 3px 6px;
     }
 }
 
@@ -2221,9 +2183,9 @@ input:focus {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(1px);
-    -webkit-backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(3px);
     z-index: 9;
     border-radius: 8px;
 }
@@ -2236,7 +2198,7 @@ input:focus {
 .peiwm-locked-section input,
 .peiwm-locked-section select,
 .peiwm-locked-section textarea {
-    cursor: not-allowed !important;
+    cursor: not-allowed;
 }
 
 .peiwm-locked-section-2 {
@@ -2720,6 +2682,35 @@ input:checked+.peiwm-toggle-slider:before {
     color: #4c1d95;
 }
 
+.peiwm-status-pending {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.peiwm-status-origin-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.68rem;
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 4px;
+    line-height: 1.4;
+}
+
+.peiwm-origin-global {
+    background: #f1f5f9;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+}
+
+.peiwm-origin-custom {
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fde68a;
+    font-weight: 600;
+}
+
 .peiwm-selective-empty {
     text-align: center;
     color: var(--text-secondary);
@@ -3049,8 +3040,8 @@ input:checked+.peiwm-toggle-slider:before {
 .peiwm-premium-cta-btn {
     display: block;
     background: linear-gradient(135deg, #f97316 0%, #764ba2 100%);
-    color: #fff !important;
-    text-decoration: none !important;
+    color: #fff;
+    text-decoration: none;
     padding: 0.9rem 2rem;
     border-radius: 14px;
     font-size: 1.05rem;
@@ -3064,7 +3055,7 @@ input:checked+.peiwm-toggle-slider:before {
 .peiwm-premium-cta-btn:hover {
     transform: translateY(-3px);
     box-shadow: 0 10px 28px rgba(249, 115, 22, 0.55);
-    color: #fff !important;
+    color: #fff;
 }
 
 .peiwm-premium-note {
@@ -3412,6 +3403,11 @@ button#peiwm-btn-mode-2:hover {
     flex-direction: column;
 }
 
+.peiwm-inline-row.post-media-match.peiwm-pro-inline-row.is-locked.peiwm-locked-section.peiwm-open-premium-modal,
+.peiwm-inline-row.page-media-match.peiwm-pro-inline-row.is-locked.peiwm-locked-section.peiwm-open-premium-modal {
+    flex-direction: column;
+}
+
 .peiwm-pro-inline-row {
     display: flex;
     align-items: flex-start;
@@ -3574,16 +3570,16 @@ button#peiwm-btn-mode-2:hover {
 }
 
 .peiwm-pro-toast__cta {
-    padding: 4px 12px !important;
-    font-size: 12px !important;
-    font-weight: 600 !important;
-    border-radius: 20px !important;
-    min-width: auto !important;
-    margin: 0 !important;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 20px;
+    min-width: auto;
+    margin: 0;
     white-space: nowrap;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-    color: #fff !important;
-    border: none !important;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border: none;
 }
 
 .peiwm-pro-toast__close {
@@ -3610,7 +3606,7 @@ button#peiwm-btn-mode-2:hover {
     .peiwm-advanced-toggle__gear,
     .peiwm-advanced-toggle__chevron,
     .peiwm-pro-toast {
-        transition: none !important;
+        transition: none;
     }
 }
 
@@ -3618,7 +3614,7 @@ button#peiwm-btn-mode-2:hover {
    Drag and Drop Modal UI
    ============================================================ */
 .peiwm-drag-drop-modal-content {
-    max-width: 500px !important;
+    max-width: 500px;
 }
 
 .peiwm-dropzone {
@@ -4311,3 +4307,1730 @@ button#peiwm-btn-mode-2:hover {
     line-height: 1.4;
     margin: 0;
 }
+
+/* ============================================
+   Media Selector Modal
+   ============================================ */
+.peiwm-media-selector-modal {
+    max-width: 800px;
+    width: 90%;
+}
+
+.peiwm-media-source-tabs {
+    display: flex;
+    gap: 8px;
+    border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 1rem;
+}
+
+.peiwm-tab-btn {
+    background: none;
+    border: none;
+    padding: 12px 20px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: #6b7280;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+}
+
+.peiwm-tab-btn:hover {
+    color: #1f2937;
+    background: #f9fafb;
+}
+
+.peiwm-tab-btn.active {
+    color: #7c3aed;
+    border-bottom-color: #7c3aed;
+}
+
+.peiwm-media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 8px;
+    background: #f9fafb;
+    border-radius: 8px;
+}
+
+.peiwm-media-item {
+    cursor: pointer;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.2s;
+    background: #fff;
+}
+
+.peiwm-media-item:hover {
+    border-color: #d1d5db;
+    transform: scale(1.02);
+}
+
+.peiwm-media-item.selected {
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+}
+
+.peiwm-media-thumb {
+    width: 100%;
+    padding-bottom: 100%;
+    background: #e5e7eb center/cover no-repeat;
+}
+
+.peiwm-media-info {
+    padding: 8px;
+    font-size: 11px;
+    color: #4b5563;
+    text-align: center;
+}
+
+.peiwm-media-title {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.peiwm-upload-area {
+    text-align: center;
+    padding: 3rem 1rem;
+    background: #f9fafb;
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+}
+
+.peiwm-upload-area button {
+    font-size: 16px;
+    padding: 12px 24px;
+}
+
+.peiwm-media-search {
+    margin-bottom: 1rem;
+}
+
+.peiwm-media-search input {
+    width: 100%;
+}
+
+.peiwm-locked-btn {
+    opacity: 0.6;
+    cursor: not-allowed;
+    position: relative;
+}
+
+.peiwm-mini-thumb {
+    flex-shrink: 0;
+}
+
+.peiwm-selected-media {
+    animation: peiwmSlideIn 0.3s ease;
+}
+
+@keyframes peiwmSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Post Tools Navigation & Panes */
+.peiwm-pt-tab-btn {
+    transition: all 0.2s ease;
+}
+
+.peiwm-pt-tab-btn:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.peiwm-pt-tab-btn.active {
+    background: #0284c7;
+    color: #ffffff;
+    border-color: #0284c7;
+    box-shadow: 0 1px 3px rgba(2, 132, 199, 0.25);
+}
+
+.peiwm-pt-tab-btn.active .peiwm-pro-badge {
+    background: #ffffff;
+    color: #0284c7;
+}
+
+.peiwm-pt-tab-pane {
+    display: none;
+}
+
+.peiwm-pt-tab-pane.active {
+    display: block;
+}
+
+/* Post Tools Badges */
+.peiwm-post-type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 4px;
+}
+
+.peiwm-badge-post {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.peiwm-badge-page {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.peiwm-badge-cpt {
+    background: #f3e8ff;
+    color: #7e22ce;
+}
+
+.peiwm-link-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #fee2e2;
+    color: #dc2626;
+    border-radius: 9999px;
+}
+
+.peiwm-snippet-item {
+    font-size: 11.5px;
+    color: #334155;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    padding: 4px 8px;
+    margin-bottom: 5px;
+    font-family: monospace;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    line-height: 1.45;
+}
+
+.peiwm-snippet-item:last-child {
+    margin-bottom: 0;
+}
+
+.peiwm-snippet-match {
+    background: #fef08a;
+    color: #854d0e;
+    font-weight: 700;
+    padding: 1px 3px;
+    border-radius: 3px;
+}
+
+/* Post Tools Tab System */
+.peiwm-pt-tab-pane {
+    display: none;
+}
+
+.peiwm-pt-tab-pane.active {
+    display: block;
+}
+
+.peiwm-pt-tab-btn {
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    transition: all 0.2s ease;
+    user-select: none;
+    box-sizing: border-box;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.peiwm-pt-tab-btn:hover {
+    background: #f1f5f9;
+    color: #334155;
+    border-color: #cbd5e1;
+}
+
+.peiwm-pt-tab-btn.active {
+    background: #0284c7;
+    color: #ffffff;
+    border-color: #0284c7;
+    box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+}
+
+.peiwm-pt-tab-btn.active .peiwm-pro-lock {
+    background: rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+}
+
+.peiwm-pt-tab-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    stroke: currentColor;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.peiwm-pt-tab-btn:hover .peiwm-pt-tab-icon {
+    transform: translateY(-1px) scale(1.06);
+}
+
+.peiwm-pt-tab-btn.active .peiwm-pt-tab-icon {
+    stroke: #ffffff;
+}
+
+.peiwm-pt-tab-btn .peiwm-pro-lock {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 6px;
+    line-height: 1;
+}
+
+.peiwm-pt-tab-btn .peiwm-pro-lock svg {
+    stroke: currentColor;
+}
+
+/* Post Tools: Drag-to-Scroll Horizontal Table Wrappers */
+.peiwm-drag-scroll-wrap {
+    overflow-x: auto;
+    cursor: grab;
+    user-select: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+.peiwm-drag-scroll-wrap.is-dragging {
+    cursor: grabbing;
+    user-select: none;
+}
+
+.peiwm-drag-scroll-wrap.is-dragging * {
+    cursor: grabbing;
+    user-select: none;
+}
+
+.peiwm-drag-scroll-wrap::-webkit-scrollbar {
+    height: 7px;
+}
+
+.peiwm-drag-scroll-wrap::-webkit-scrollbar-track {
+    background: #f8fafc;
+    border-radius: 4px;
+}
+
+.peiwm-drag-scroll-wrap::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.peiwm-drag-scroll-wrap::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Post Health & Cleanup Vertical Issue Badges */
+.peiwm-cleanup-issues-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    align-items: flex-start;
+    max-width: 100%;
+}
+
+.peiwm-cleanup-issue-badge {
+    display: inline-flex;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 11.5px;
+    line-height: 1.4;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+    box-sizing: border-box;
+    flex-direction: column;
+}
+
+/* Post Health & Cleanup Button Group & Category Modal */
+.peiwm-btn-group {
+    display: inline-flex;
+    align-items: stretch;
+}
+
+.peiwm-btn-group button:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.peiwm-btn-group button:last-child {
+    border-left: none;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+.peiwm-cat-item:hover {
+    background: #f8fafc;
+}
+
+.peiwm-cat-item input[type="radio"]:checked+span {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.peiwm-broken-img-line {
+    transition: background 0.15s ease;
+}
+
+.peiwm-broken-img-line:hover {
+    background: #fff;
+}
+
+/* Find & Replace Diff Preview Elements */
+.peiwm-diff-item {
+    font-size: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    font-family: monospace;
+    line-height: 1.4;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.peiwm-diff-item:last-child {
+    margin-bottom: 0;
+}
+
+.peiwm-diff-field {
+    font-weight: 700;
+    font-size: 11px;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.peiwm-diff-before {
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 2px 5px;
+    border-radius: 3px;
+    display: block;
+    margin-bottom: 3px;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.peiwm-diff-after {
+    background: #dcfce7;
+    color: #166534;
+    padding: 2px 5px;
+    border-radius: 3px;
+    display: block;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+/* ── Post Tools: Tab System Display Guarantee ────────────────────────────── */
+.peiwm-pt-tab-pane {
+    display: none;
+}
+
+.peiwm-pt-tab-pane.active {
+    display: block;
+}
+
+/* ── Post Tools: Modern Table Design System ─────────────────────────────── */
+.peiwm-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    width: 100%;
+    background: #ffffff;
+    overflow: hidden;
+    font-size: 13px;
+}
+
+.peiwm-table thead th {
+    background: #f8fafc;
+    color: #475569;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 11px 14px;
+    border-bottom: 2px solid #e2e8f0;
+    border-top: none;
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.peiwm-table tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #f1f5f9;
+    border-top: none;
+    vertical-align: middle;
+    color: #334155;
+    font-size: 13px;
+    background: transparent;
+}
+
+.peiwm-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.peiwm-table tbody tr:hover td {
+    background-color: #f8fafc;
+}
+
+/* Column Specific Widths & Alignments */
+.peiwm-table .peiwm-col-cb {
+    width: 42px;
+    min-width: 42px;
+    max-width: 42px;
+    text-align: center;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.peiwm-table .peiwm-col-id {
+    width: 68px;
+    min-width: 68px;
+    font-family: monospace;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.peiwm-table .peiwm-col-title {
+    min-width: 180px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.peiwm-table .peiwm-col-title a {
+    color: #0f172a;
+    text-decoration: none;
+}
+
+.peiwm-table .peiwm-col-title a:hover {
+    color: #0284c7;
+    text-decoration: underline;
+}
+
+.peiwm-table .peiwm-col-type {
+    width: 80px;
+    min-width: 80px;
+}
+
+.peiwm-table .peiwm-col-date {
+    width: 110px;
+    min-width: 110px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.peiwm-table .peiwm-col-status {
+    width: 90px;
+    min-width: 90px;
+}
+
+.peiwm-table .peiwm-col-thumb {
+    width: 130px;
+    min-width: 130px;
+}
+
+.peiwm-table .peiwm-col-matches {
+    width: 85px;
+    min-width: 85px;
+    text-align: center;
+}
+
+.peiwm-table .peiwm-col-issues,
+.peiwm-table .peiwm-col-snippets {
+    min-width: 220px;
+}
+
+.peiwm-table .peiwm-col-actions {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.peiwm-cleanup-table .peiwm-col-actions {
+    width: 260px;
+    min-width: 260px;
+}
+
+.peiwm-il-table .peiwm-col-actions {
+    width: 160px;
+    min-width: 160px;
+}
+
+.peiwm-fr-table .peiwm-col-actions {
+    width: 150px;
+    min-width: 150px;
+}
+
+.peiwm-mf-table .peiwm-col-actions {
+    width: 160px;
+    min-width: 160px;
+}
+
+.peiwm-dd-table .peiwm-col-actions {
+    width: 160px;
+    min-width: 160px;
+}
+
+.peiwm-orphaned-table .peiwm-col-actions {
+    width: 160px;
+    min-width: 160px;
+}
+
+/* ── Action Buttons Container & Standardized Modern Buttons ────────────── */
+.peiwm-row-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    /* Proper breathing room — no cramped/broken buttons! */
+    flex-wrap: wrap;
+    vertical-align: middle;
+}
+
+.peiwm-btn-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 10px;
+    height: 28px;
+    line-height: 26px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #334155;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: all 0.15s ease-in-out;
+    margin: 0;
+}
+
+.peiwm-btn-action:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    text-decoration: none;
+}
+
+.peiwm-btn-action:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.peiwm-btn-action-replace {
+    border-color: #f472b6;
+    color: #9d174d;
+    background: #fdf2f8;
+}
+
+.peiwm-btn-action-replace:hover {
+    background: #fce7f3;
+    border-color: #ec4899;
+    color: #831843;
+}
+
+.peiwm-btn-action-category {
+    border-color: #fbbf24;
+    color: #b45309;
+    background: #fffbeb;
+}
+
+.peiwm-btn-action-category:hover {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #92400e;
+}
+
+.peiwm-btn-action-trash {
+    border-color: #fca5a5;
+    color: #dc2626;
+    background: #fef2f2;
+}
+
+.peiwm-btn-action-trash:hover {
+    background: #fee2e2;
+    border-color: #ef4444;
+    color: #b91c1c;
+}
+
+.peiwm-btn-action-primary {
+    background: #2563eb;
+    border-color: #1d4ed8;
+    color: #ffffff;
+}
+
+.peiwm-btn-action-primary:hover {
+    background: #1d4ed8;
+    border-color: #1e40af;
+    color: #ffffff;
+}
+
+.peiwm-btn-action-edit:hover,
+.peiwm-btn-action-view:hover {
+    background: #f1f5f9;
+    border-color: #64748b;
+    color: #0f172a;
+}
+
+/* Broken image list details */
+.peiwm-broken-img-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.85);
+    padding: 4px 8px;
+    border-radius: 5px;
+    border: 1px solid #fbcfe8;
+    margin-top: 4px;
+    flex-direction: column;
+}
+
+.peiwm-broken-img-src {
+    font-size: 11px;
+    word-break: break-all;
+    color: #9d174d;
+    background: none;
+    padding: 0;
+}
+
+.peiwm-replace-single-img-btn {
+    height: 24px;
+    line-height: 22px;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    margin: 0;
+}
+
+/* Toolbar button group (Default Category + 3-dot dropdown) */
+.peiwm-btn-group {
+    display: inline-flex;
+    align-items: stretch;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.peiwm-btn-group .button:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    margin-right: 0;
+}
+
+.peiwm-btn-group .button:last-child {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-left: 1px solid rgba(217, 119, 6, 0.3);
+    margin-left: -1px;
+    padding: 0 10px;
+}
+
+/* ── Assign Category Modal: True Full-Screen Viewport Overlay ────────────── */
+body.peiwm-modal-open {
+    overflow: hidden;
+}
+
+#peiwm-assign-category-modal.peiwm-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 999999;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+    transition: none;
+    isolation: isolate;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    overflow: hidden;
+}
+
+#peiwm-assign-category-modal.peiwm-modal-overlay.peiwm-show {
+    display: flex;
+    opacity: 1;
+    visibility: visible;
+}
+
+#peiwm-assign-category-modal .peiwm-modal {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.08);
+    max-width: 480px;
+    width: 100%;
+    max-height: 85vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transform: none;
+    margin: auto;
+    transition: none;
+    position: relative;
+    pointer-events: auto;
+}
+
+#peiwm-assign-category-modal .peiwm-modal-body {
+    overflow-y: auto;
+    max-height: calc(85vh - 130px);
+}
+
+#peiwm-assign-category-modal .peiwm-cat-item:hover,
+#peiwm-assign-category-modal .peiwm-tag-item:hover {
+    background: #f8fafc;
+}
+
+#peiwm-assign-category-modal .peiwm-tax-modal-tab-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+
+#peiwm-assign-category-modal .peiwm-tax-modal-tab-btn:hover {
+    color: #1e293b;
+}
+
+#peiwm-assign-category-modal .peiwm-tax-modal-tab-btn.active[data-tab="categories"] {
+    color: #b45309 !important;
+    border-bottom-color: #d97706 !important;
+}
+
+#peiwm-assign-category-modal .peiwm-tax-modal-tab-btn.active[data-tab="tags"] {
+    color: #1d4ed8 !important;
+    border-bottom-color: #2563eb !important;
+}
+
+.peiwm-btn-action-tag {
+    background: #eff6ff !important;
+    border-color: #bfdbfe !important;
+    color: #1d4ed8 !important;
+}
+
+.peiwm-btn-action-tag:hover {
+    background: #dbeafe !important;
+    border-color: #93c5fd !important;
+    color: #1e40af !important;
+}
+
+/* ── TAB 8: Post Diff & Revision History ─────────────────────────────────── */
+.peiwm-diff-layout {
+    display: grid;
+    grid-template-columns: minmax(360px, 1fr) minmax(380px, 1.35fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.peiwm-diff-table {
+    width: 100%;
+    min-width: 480px;
+    table-layout: auto !important;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: none !important;
+    margin: 0 !important;
+}
+
+.peiwm-diff-table thead th {
+    padding: 10px 12px !important;
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    background: #f8fafc;
+    border-bottom: 2px solid #e2e8f0 !important;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.peiwm-diff-table tbody td {
+    padding: 10px 12px !important;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 13px;
+    background: transparent;
+}
+
+.peiwm-diff-table tbody tr {
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.peiwm-diff-table tbody tr:hover td {
+    background-color: #f8fafc;
+}
+
+.peiwm-diff-table tbody tr.is-selected td {
+    background-color: #eff6ff;
+}
+
+.peiwm-diff-table .peiwm-diff-col-id {
+    width: 55px;
+    min-width: 50px;
+    max-width: 65px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    text-align: left;
+}
+
+.peiwm-diff-table .peiwm-diff-col-title {
+    min-width: 150px;
+    white-space: normal;
+    word-break: break-word;
+}
+
+.peiwm-diff-post-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e293b;
+    line-height: 1.4;
+    word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+.peiwm-diff-post-date {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 3px;
+    line-height: 1.2;
+}
+
+.peiwm-diff-table .peiwm-diff-col-type {
+    width: 75px;
+    min-width: 70px;
+    text-align: center;
+}
+
+.peiwm-diff-table .peiwm-diff-col-versions {
+    width: 80px;
+    min-width: 75px;
+    text-align: center;
+}
+
+.peiwm-diff-table .peiwm-diff-col-actions {
+    width: 96px;
+    min-width: 96px;
+    text-align: center;
+    white-space: nowrap;
+    padding-left: 6px !important;
+    padding-right: 10px !important;
+}
+
+.peiwm-diff-table .peiwm-diff-col-actions .peiwm-btn-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 0 11px;
+    height: 28px;
+    line-height: 26px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    border-radius: 6px;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+.peiwm-version-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+}
+
+.peiwm-version-card:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.peiwm-version-card.is-selected {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 1px #3b82f6;
+}
+
+.peiwm-version-badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    background: #e2e8f0;
+    color: #475569;
+}
+
+.peiwm-version-badge.is-current {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.peiwm-diff-content-scroll table.diff {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    background: #fff;
+    margin: 0;
+}
+
+.peiwm-diff-content-scroll table.diff td {
+    padding: 3px 8px;
+    vertical-align: top;
+    border: none;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.peiwm-diff-content-scroll .diff-deletedline {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+}
+
+.peiwm-diff-content-scroll .diff-deletedline del {
+    background-color: #fca5a5 !important;
+    text-decoration: none !important;
+    font-weight: 700;
+    border-radius: 2px;
+    padding: 0 2px;
+}
+
+.peiwm-diff-content-scroll .diff-addedline {
+    background-color: #dcfce7 !important;
+    color: #166534 !important;
+}
+
+.peiwm-diff-content-scroll .diff-addedline ins {
+    background-color: #86efac !important;
+    text-decoration: none !important;
+    font-weight: 700;
+    border-radius: 2px;
+    padding: 0 2px;
+}
+
+.peiwm-diff-content-scroll .diff-context {
+    background-color: #ffffff !important;
+    color: #475569 !important;
+}
+
+/* Post Diff Restore Modal */
+#peiwm-diff-restore-modal.peiwm-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 999999;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+    transition: none;
+    isolation: isolate;
+    backface-visibility: hidden;
+    overflow: hidden;
+}
+
+#peiwm-diff-restore-modal.peiwm-modal-overlay.peiwm-show {
+    display: flex;
+    opacity: 1;
+    visibility: visible;
+}
+
+#peiwm-diff-restore-modal .peiwm-modal {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.08);
+    max-width: 440px;
+    width: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    margin: auto;
+    position: relative;
+}
+
+/* ── Responsive Adjustments for Post Diff & Post Tools Navigation ── */
+@media (max-width: 1080px) {
+    .peiwm-diff-layout {
+        grid-template-columns: 1fr !important;
+        gap: 20px !important;
+    }
+
+    .peiwm-diff-posts-col {
+        max-height: 480px;
+    }
+}
+
+@media (max-width: 840px) {
+    .peiwm-post-tools-nav {
+        gap: 6px !important;
+        margin-bottom: 16px !important;
+        padding-bottom: 10px !important;
+    }
+
+    .peiwm-pt-tab-btn {
+        padding: 7px 12px !important;
+        font-size: 12.5px !important;
+        gap: 5px !important;
+        white-space: nowrap !important;
+    }
+
+    .peiwm-diff-table thead th,
+    .peiwm-diff-table tbody td {
+        padding: 8px 10px !important;
+    }
+
+    .peiwm-diff-table .peiwm-diff-col-title {
+        min-width: 140px;
+    }
+}
+
+@media (max-width: 600px) {
+    .peiwm-post-tools-nav {
+        gap: 5px !important;
+        overflow-x: auto;
+        flex-wrap: nowrap !important;
+        padding-bottom: 8px !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .peiwm-pt-tab-btn {
+        padding: 6px 10px !important;
+        font-size: 12px !important;
+        flex-shrink: 0;
+    }
+
+    .peiwm-diff-table {
+        min-width: 440px;
+    }
+}
+
+/* ==========================================================================
+   SEO Analysis & Migration Intelligence
+   ========================================================================== */
+
+.peiwm-seo-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    min-width: 980px;
+    table-layout: auto !important;
+}
+
+.peiwm-seo-table thead th {
+    background: #f8fafc;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 12px 14px;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.peiwm-seo-table tbody td {
+    padding: 12px 14px;
+    font-size: 13px;
+    color: #334155;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.peiwm-seo-table tbody tr:hover td {
+    background: #f8fafc;
+}
+
+.peiwm-seo-table .peiwm-col-check {
+    width: 38px;
+    min-width: 38px;
+    max-width: 38px;
+    text-align: center;
+    padding-left: 10px;
+    padding-right: 10px;
+}
+
+.peiwm-seo-table .peiwm-col-id {
+    width: 60px;
+    min-width: 60px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.peiwm-seo-table .peiwm-col-title {
+    min-width: 250px;
+    max-width: 380px;
+    word-break: normal;
+    overflow-wrap: break-word;
+    white-space: normal;
+    line-height: 1.45;
+}
+
+.peiwm-seo-table .peiwm-col-plugin {
+    width: 120px;
+    min-width: 110px;
+    white-space: nowrap;
+}
+
+.peiwm-seo-table .peiwm-col-score {
+    width: 110px;
+    min-width: 100px;
+    white-space: nowrap;
+}
+
+.peiwm-seo-table .peiwm-col-keyword {
+    min-width: 150px;
+    max-width: 220px;
+    word-break: break-all;
+}
+
+.peiwm-seo-table .peiwm-col-usage {
+    width: 130px;
+    min-width: 115px;
+    white-space: nowrap;
+}
+
+.peiwm-seo-table .peiwm-col-issues {
+    width: 140px;
+    min-width: 130px;
+    white-space: nowrap;
+}
+
+.peiwm-seo-table .peiwm-col-actions {
+    width: 180px;
+    min-width: 170px;
+    white-space: nowrap;
+    text-align: right;
+}
+
+/* SEO Health Score Badges */
+.peiwm-seo-score-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+}
+
+.peiwm-score-excellent {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.peiwm-score-good {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+
+.peiwm-score-warning {
+    background: #fef9c3;
+    color: #854d0e;
+    border: 1px solid #fde047;
+}
+
+.peiwm-score-critical {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+
+/* SEO Plugin Badges */
+.peiwm-plugin-badge {
+    display: inline-block;
+    padding: 2.5px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.peiwm-plugin-rank-math {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+}
+
+.peiwm-plugin-yoast {
+    background: #ede9fe;
+    color: #6d28d9;
+    border: 1px solid #ddd6fe;
+}
+
+.peiwm-plugin-aioseo {
+    background: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+}
+
+.peiwm-plugin-seopress {
+    background: #ffedd5;
+    color: #c2410c;
+    border: 1px solid #fed7aa;
+}
+
+.peiwm-plugin-the-seo-framework {
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+.peiwm-plugin-core {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+}
+
+/* Google SERP Snippet Preview Box */
+#peiwm-seo-serp-preview-box,
+#peiwm-seo-modal-serp-box {
+    transition: all 0.25s ease-in-out;
+    background: #fafafa;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+}
+
+#peiwm-seo-serp-preview-box.is-mobile,
+#peiwm-seo-modal-serp-box.is-mobile {
+    max-width: 380px;
+    margin: 0 auto;
+    background: #ffffff;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 16px 18px !important;
+}
+
+#peiwm-seo-serp-preview-box.is-mobile #peiwm-seo-serp-title,
+#peiwm-seo-modal-serp-box.is-mobile #peiwm-seo-modal-serp-title {
+    font-size: 16px !important;
+    line-height: 1.35 !important;
+    font-weight: 500;
+}
+
+#peiwm-seo-serp-title:hover,
+#peiwm-seo-modal-serp-title:hover {
+    text-decoration: underline;
+}
+
+/* SERP Toggle Controls */
+.peiwm-seo-serp-toggle,
+.peiwm-seo-modal-serp-toggle {
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.peiwm-seo-serp-toggle:hover:not(.active),
+.peiwm-seo-modal-serp-toggle:hover:not(.active) {
+    background: #e2e8f0 !important;
+    color: #1e293b !important;
+}
+
+/* Modal Inspection Checklist */
+.peiwm-seo-check-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 6px;
+    border: 1px solid #f1f5f9;
+    background: #fafafa;
+    transition: background 0.15s ease;
+}
+
+.peiwm-seo-check-card:hover {
+    background: #f1f5f9;
+}
+
+.peiwm-seo-check-icon {
+    font-size: 14px;
+    line-height: 1.4;
+    flex-shrink: 0;
+}
+
+.peiwm-seo-check-icon.pass {
+    color: #166534;
+}
+
+.peiwm-seo-check-icon.warning {
+    color: #ca8a04;
+}
+
+.peiwm-seo-check-icon.critical {
+    color: #dc2626;
+}
+
+.peiwm-seo-check-title {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 12.5px;
+}
+
+.peiwm-seo-check-msg {
+    color: #64748b;
+    font-size: 11.5px;
+    margin-top: 1px;
+}
+
+/* Image ALT Table */
+.peiwm-seo-img-thumb {
+    width: 36px;
+    height: 36px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+    display: block;
+    background: #f8fafc;
+}
+
+/* Clickable Issue Breakdown Badges */
+.peiwm-seo-issues-badge {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    transition: all 0.15s ease;
+}
+
+.peiwm-seo-issues-badge:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transform: translateY(-1px);
+}
+
+/* Bulk Actions Toolbar */
+#peiwm-seo-bulk-bar {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Interactive Cannibalization Pills */
+.peiwm-seo-cannibal-pill {
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.peiwm-seo-cannibal-pill:hover {
+    background: #fef3c7 !important;
+    border-color: #f59e0b !important;
+    color: #78350f !important;
+    transform: scale(1.03);
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25);
+}
+
+/* PRO Lock Full Section Overlay */
+.peiwm-locked-section>.peiwm-pro-upgrade-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 99;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
+    border: none;
+    border-radius: 12px;
+}
+
+/* Universal High-Contrast Floating Toast Notification */
+.peiwm-notification {
+    position: fixed !important;
+    bottom: 24px !important;
+    right: 24px !important;
+    top: auto !important;
+    left: auto !important;
+    z-index: 999999 !important;
+    width: auto !important;
+    min-width: 280px !important;
+    max-width: 440px !important;
+    height: auto !important;
+    min-height: unset !important;
+    max-height: max-content !important;
+    padding: 12px 18px !important;
+    border-radius: 10px !important;
+    background: #0f172a !important;
+    /* Premium Slate 900 */
+    color: #f8fafc !important;
+    font-family: inherit !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    line-height: 1.45 !important;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4) !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    opacity: 0 !important;
+    transform: translateY(18px) scale(0.96) !important;
+    transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    pointer-events: none !important;
+    box-sizing: border-box !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-left: 5px solid #0284c7 !important;
+}
+
+.peiwm-notification.peiwm-show {
+    opacity: 1 !important;
+    transform: translateY(0) scale(1) !important;
+    pointer-events: auto !important;
+}
+
+.peiwm-notification.peiwm-success {
+    background: #0f172a !important;
+    border-left-color: #10b981 !important;
+}
+
+.peiwm-notification.peiwm-error {
+    background: #0f172a !important;
+    border-left-color: #ef4444 !important;
+}
+
+.peiwm-notification.peiwm-warning {
+    background: #0f172a !important;
+    border-left-color: #f59e0b !important;
+}
+
+.peiwm-notification.peiwm-info {
+    background: #0f172a !important;
+    border-left-color: #0284c7 !important;
+}
+
+/* Universal Modal Overlay System */
+body.peiwm-modal-open {
+    overflow: hidden !important;
+}
+
+.peiwm-modal-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 999999 !important;
+    background: rgba(15, 23, 42, 0.7) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+    display: none;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 20px !important;
+    box-sizing: border-box !important;
+    isolation: isolate !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+.peiwm-modal-overlay.peiwm-show {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+.peiwm-modal-overlay .peiwm-modal {
+    background: #ffffff !important;
+    border-radius: 12px !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.08) !important;
+    position: relative !important;
+    pointer-events: auto !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    transform: none !important;
+    margin: auto !important;
+}
+
+#peiwm-seo-inspect-modal .peiwm-modal {
+    max-width: 920px !important;
+    width: 96% !important;
+    max-height: 90vh !important;
+    height: 90vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+}
+
+#peiwm-seo-inspect-modal .peiwm-modal-body {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    padding: 20px 24px !important;
+}
+
+/* Responsive Rules for SEO Analysis */
+@media (max-width: 1024px) {
+    .peiwm-seo-table {
+        min-width: 920px;
+    }
+}
+
+@media (max-width: 768px) {
+    #peiwm-seo-table-container {
+        border-radius: 6px;
+    }
+}
+
+/* Resolve Duplicate Slugs Modal */
+#peiwm-resolve-slugs-modal.peiwm-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 999999;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+    transition: none;
+    isolation: isolate;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    overflow: hidden;
+}
+
+#peiwm-resolve-slugs-modal.peiwm-modal-overlay.peiwm-show {
+    display: flex;
+    opacity: 1;
+    visibility: visible;
+}
+
+#peiwm-resolve-slugs-modal .peiwm-modal {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(0, 0, 0, 0.08);
+    max-width: 660px;
+    width: 100%;
+    max-height: 85vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transform: none;
+    margin: auto;
+    transition: none;
+    position: relative;
+    pointer-events: auto;
+}
+
+#peiwm-resolve-slugs-modal .peiwm-modal-body {
+    overflow-y: auto;
+    max-height: calc(85vh - 130px);
+}
+
+.peiwm-btn-action-slug {
+    border-color: #d97706 !important;
+    color: #b45309 !important;
+    background: #fff !important;
+}
+
+.peiwm-btn-action-slug:hover {
+    background: #fef3c7 !important;
+    color: #92400e !important;
+}
+
+.peiwm-slug-row-item:hover {
+    border-color: #cbd5e1 !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06) !important;
+}

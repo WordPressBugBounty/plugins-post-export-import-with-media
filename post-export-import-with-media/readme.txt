@@ -4,7 +4,7 @@ Tags: export-media, import, post-export, page-export, migration
 Requires at least: 6.7
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable Tag: 1.17.1
+Stable Tag: 1.17.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -304,6 +304,10 @@ Use the support forum on this plugin's WordPress.org page. Include your WordPres
 4. Dashboard of WordPress Settings Export/Import.
 
 == Changelog ==
+
+= 1.17.2 – 03 October 2026 =
+* **Improvement:** Media Import Performance & Timeout Fix
+* **Fix:** Optimized code and strengthened security to address potential vulnerabilities
 
 = 1.17.1 – 11 September 2026 =
 * **Fix:** Fixe theme and plugin toolkit missing menu isuses  

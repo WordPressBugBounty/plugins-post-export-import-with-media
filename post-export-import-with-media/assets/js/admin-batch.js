@@ -24,8 +24,11 @@ jQuery(document).ready(function ($) {
 
     // Override export posts button
     $('#peiwm-export-posts').off('click').on('click', function () {
-        // If selective mode is on, use chunked selective export
-        if ($('#peiwm-export-posts-selective').is(':checked')) {
+        // If selective mode OR date-range filter is on, export only the checked posts from the list
+        const isSelective = $('#peiwm-export-posts-selective').is(':checked');
+        const isDateRange = $('#peiwm-export-posts-daterange').is(':checked');
+
+        if (isSelective || isDateRange) {
             const button = $(this);
             const originalText = button.text();
             const ids = [];
@@ -43,18 +46,16 @@ jQuery(document).ready(function ($) {
 
             const ajaxChunkSize = 50;
             let allData = [];
-            let selectiveOffset = 0; // tracks position in ids array
+            let selectiveOffset = 0;
 
             function exportChunk() {
-                // Pre-slice IDs in JS - avoids sending all IDs every request and offset confusion
                 const chunkIds = ids.slice(selectiveOffset, selectiveOffset + ajaxChunkSize);
                 if (chunkIds.length === 0) {
-                    // All done
                     const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
                     const url = window.URL.createObjectURL(blob);
                     const link = document.createElement('a');
                     link.href = url;
-                    link.download = 'posts_export_' + new Date().toISOString().slice(0, 10) + '.json';
+                    link.download = 'posts-export-' + new Date().toISOString().slice(0, 19).replace(/T|:/g, '-') + '.json';
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
@@ -71,9 +72,10 @@ jQuery(document).ready(function ($) {
                     data: {
                         action: 'peiwm_export_posts_chunk',
                         nonce: peiwm_ajax.nonce,
-                        offset: 0,           // always 0 - IDs are pre-sliced
+                        offset: 0,
                         chunk_size: chunkIds.length,
                         post_ids: chunkIds.join(','),
+                        export_acf_fields: $('#peiwm-export-acf-fields').is(':checked') ? '1' : '0',
                         export_wpml_data: $('#peiwm-export-wpml-data').is(':checked') ? '1' : '0'
                     },
                     success: function (response) {
@@ -87,7 +89,7 @@ jQuery(document).ready(function ($) {
                                 const url = window.URL.createObjectURL(blob);
                                 const link = document.createElement('a');
                                 link.href = url;
-                                link.download = 'posts_export_' + new Date().toISOString().slice(0, 10) + '.json';
+                                link.download = 'posts-export-' + new Date().toISOString().slice(0, 19).replace(/T|:/g, '-') + '.json';
                                 document.body.appendChild(link);
                                 link.click();
                                 document.body.removeChild(link);
@@ -138,7 +140,7 @@ jQuery(document).ready(function ($) {
                         const url = window.URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = 'pages-export-' + new Date().toISOString().slice(0, 10) + '.json';
+                        a.download = 'pages-export-' + new Date().toISOString().slice(0, 19).replace(/T|:/g, '-') + '.json';
                         document.body.appendChild(a);
                         a.click();
                         window.URL.revokeObjectURL(url);
@@ -470,7 +472,918 @@ jQuery(document).ready(function ($) {
     }
 
     // Batch Export Pages
-    
+    function batchExportPages() {
+        const button = $('#peiwm-export-pages');
+        const originalText = button.text();
+        const progress = $('#peiwm-pages-progress');
+        const progressFill = progress.find('.peiwm-progress-fill');
+        const progressText = progress.find('.peiwm-progress-text');
+        const log = progress.find('.peiwm-log');
+
+        button.prop('disabled', true).text('Initializing...');
+        progress.show();
+        $('html, body').animate({ scrollTop: progress.offset().top - 40 }, 400);
+        progressFill.css('width', '0%');
+        log.empty();
+
+        // Start batch export
+        $.ajax({
+            url: peiwm_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'peiwm_batch_export_pages_start',
+                nonce: peiwm_ajax.nonce,
+                export_wpml_data: $('#peiwm-pages-export-wpml-data').is(':checked') ? '1' : '0'
+            },
+            success: function (response) {
+                if (response.success) {
+                    const batchId = response.data.batch_id;
+                    const totalBatches = response.data.total_batches;
+                    const totalCount = response.data.total_count;
+
+                    addLog('📦 Batch export started: ' + totalCount + ' pages in ' + totalBatches + ' batches', log);
+                    
+                    processBatchExport(batchId, 0, totalBatches, 'pages', button, originalText);
+                } else {
+                    showError('Export failed: ' + response.data.message);
+                    button.prop('disabled', false).text(originalText);
+                    progress.hide();
+                }
+            },
+            error: function (xhr, status, error) {
+                showError('Export failed: ' + error);
+                button.prop('disabled', false).text(originalText);
+                progress.hide();
+            }
+        });
+    }
+
+    // Batch Export Media
+    function batchExportMedia() {
+        const button = $('#peiwm-export-media');
+        const originalText = button.text();
+        const progress = $('#peiwm-media-progress');
+        const progressFill = progress.find('.peiwm-progress-fill');
+        const progressText = progress.find('.peiwm-progress-text');
+        const log = progress.find('.peiwm-log');
+        const exportAllSizes = $('#peiwm-export-all-image-sizes').is(':checked');
+
+        // Collect advanced filter params (shared helper from admin.js)
+        const advancedParams = (typeof getMediaExportParams === 'function') ? getMediaExportParams() : {};
+        if (advancedParams === null) {
+            showError('Please select at least one post to export media from.');
+            return;
+        }
+
+        // Validate date range error
+        if ($('#peiwm-media-export-daterange').is(':checked') && $('#peiwm-media-daterange-error').is(':visible')) {
+            showError('Please fix the date range error before exporting.');
+            return;
+        }
+
+        button.prop('disabled', true).text('Initializing...');
+        progress.show();
+        progressFill.css('width', '0%');
+        log.empty();
+
+        // Start batch export
+        $.ajax({
+            url: peiwm_ajax.ajax_url,
+            type: 'POST',
+            data: Object.assign({
+                action: 'peiwm_batch_export_media_start',
+                nonce: peiwm_ajax.nonce,
+                export_all_sizes: exportAllSizes ? '1' : '0'
+            }, advancedParams),
+            success: function (response) {
+                if (response.success) {
+                    const batchId = response.data.batch_id;
+                    const totalBatches = response.data.total_batches;
+                    const totalCount = response.data.total_count;
+
+                    addLog('📦 Batch export started: ' + totalCount + ' media files in ' + totalBatches + ' batches', log);
+                    
+                    processBatchExport(batchId, 0, totalBatches, 'media', button, originalText);
+                } else {
+                    showError('Export failed: ' + response.data.message);
+                    button.prop('disabled', false).text(originalText);
+                    progress.hide();
+                }
+            },
+            error: function (xhr, status, error) {
+                showError('Export failed: ' + error);
+                button.prop('disabled', false).text(originalText);
+                progress.hide();
+            }
+        });
+    }
+
+    // Process batch export
+    function processBatchExport(batchId, currentBatch, totalBatches, type, button, originalText) {
+        const progress = $('#peiwm-' + type + '-progress');
+        const progressFill = progress.find('.peiwm-progress-fill');
+        const progressText = progress.find('.peiwm-progress-text');
+        const log = progress.find('.peiwm-log');
+
+        if (currentBatch >= totalBatches) {
+            progressFill.css('width', '100%');
+            progressText.text('Export complete!');
+            addLog('✓ All batches exported successfully!', log);
+            showSuccess('Batch export completed! ' + totalBatches + ' file(s) created.');
+            button.prop('disabled', false).text(originalText);
+            return;
+        }
+
+        const action = type === 'posts' ? 'peiwm_batch_export_posts_process' : 
+                       type === 'pages' ? 'peiwm_batch_export_pages_process' : 
+                       'peiwm_batch_export_media_process';
+        
+        $.ajax({
+            url: peiwm_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: action,
+                nonce: peiwm_ajax.nonce,
+                batch_id: batchId,
+                batch_number: currentBatch
+            },
+            success: function (response) {
+                if (response.success) {
+                    const batchNum = currentBatch + 1;
+                    let logMsg = '✓ Batch ' + batchNum + '/' + totalBatches + ': ' + response.data.filename;
+                    
+                    // Show clear breakdown for media exports
+                    if (type === 'media') {
+                        if (response.data.export_all_sizes) {
+                            logMsg += ' (' + response.data.unique_count + ' media, ' + response.data.count + ' total files with sizes, ' + response.data.file_size + ')';
+                        } else {
+                            logMsg += ' (' + response.data.count + ' items, ' + response.data.file_size + ')';
+                        }
+                    } else {
+                        logMsg += ' (' + response.data.count + ' items, ' + response.data.file_size + ')';
+                    }
+                    
+                    // Show warning if files were skipped in this batch
+                    if (response.data.skipped_count && response.data.skipped_count > 0) {
+                        logMsg += ' - ⚠️ ' + response.data.skipped_count + ' file(s) skipped (missing)';
+                    }
+                    
+                    addLog(logMsg, log);
+                    
+                    // Auto-download the file
+                    const link = document.createElement('a');
+                    link.href = response.data.download_url;
+                    link.download = response.data.filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    // Update progress
+                    const progressPercent = Math.round(((currentBatch + 1) / totalBatches) * 100);
+                    progressFill.css('width', progressPercent + '%');
+                    progressText.text('Exporting batch ' + batchNum + ' of ' + totalBatches + '... (' + progressPercent + '%)');
+
+                    // Process next batch with delay
+                    setTimeout(function() {
+                        processBatchExport(batchId, currentBatch + 1, totalBatches, type, button, originalText);
+                    }, peiwm_batch_settings.delay || 500);
+                } else {
+                    addLog('✗ Batch ' + (currentBatch + 1) + ' failed: ' + response.data.message, log);
+                    showError('Batch export failed at batch ' + (currentBatch + 1));
+                    button.prop('disabled', false).text(originalText);
+                }
+            },
+            error: function (xhr, status, error) {
+                addLog('✗ Batch ' + (currentBatch + 1) + ' error: ' + error, log);
+                showError('Batch export error: ' + error);
+                button.prop('disabled', false).text(originalText);
+            }
+        });
+    }
+
+    // Batch Import Posts
+    function batchImportPosts(posts, fileLabel, fileIndex, totalFiles, onComplete) {
+        // Normalise arguments — legacy callers may pass (posts, onComplete)
+        if (typeof fileLabel === 'function') {
+            onComplete  = fileLabel;
+            fileLabel   = 'file 1';
+            fileIndex   = 1;
+            totalFiles  = 1;
+        }
+        if (typeof fileIndex !== 'number') fileIndex  = 1;
+        if (typeof totalFiles !== 'number') totalFiles = 1;
+        if (!fileLabel) fileLabel = 'file ' + fileIndex;
+
+        const progress = $('#peiwm-posts-progress');
+        const progressFill = progress.find('.peiwm-progress-fill');
+        const progressText = progress.find('.peiwm-progress-text');
+        const log = progress.find('.peiwm-log');
+
+        progress.show();
+        progressFill.css('width', '0%');
+        log.empty();
+
+        // Generation counter - if a new batchImportPosts call starts, old callbacks are ignored
+        const myGeneration = (window._peiwmBatchPostsGen = (window._peiwmBatchPostsGen || 0) + 1);
+
+        const batchSize = peiwm_batch_settings.post_batch_size || 20;
+        const totalPosts = posts.length;
+        const totalBatches = Math.ceil(totalPosts / batchSize);
+        // FIX: Hard cap concurrent at 3 — 10 workers * 60s = server overload / 502
+        const rawConcurrent = peiwm_batch_settings.concurrent_requests || 3;
+        const concurrentRequests = Math.min(rawConcurrent, 3);
+
+        // Add time tracking info container
+        if (!$('#peiwm-batch-time-info').length) {
+            progress.find('.peiwm-progress-bar').after('<div id="peiwm-batch-time-info" style="margin-top: 10px; padding: 10px; background: #f0f6fc; border-radius: 4px; font-size: 13px;"></div>');
+        }
+        const timeInfo = $('#peiwm-batch-time-info');
+
+        addLog('📦 Batch import started: ' + totalPosts + ' posts in ' + totalBatches + ' batches' + (totalFiles > 1 ? ' — File ' + fileIndex + '/' + totalFiles + ': ' + fileLabel : ''), log);
+        addLog('⚡ Processing ' + concurrentRequests + ' posts simultaneously', log);
+        progressText.text('Starting batch import…');
+
+        const startTime = Date.now();
+        let currentBatch = 0;
+        let processedCount = 0;
+        const failedPosts = [];
+        let completed = false; // prevent processNextBatch after onComplete fires // Track all failed/timeout posts for retry
+
+        function updateTimeInfo() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const elapsedMin = Math.floor(elapsed / 60);
+            const elapsedSec = elapsed % 60;
+            
+            let remaining = 0;
+            let remainingMin = 0;
+            let remainingSec = 0;
+            
+            if (processedCount > 0) {
+                const avgTimePerPost = elapsed / processedCount;
+                remaining = Math.floor(avgTimePerPost * (totalPosts - processedCount));
+                remainingMin = Math.floor(remaining / 60);
+                remainingSec = remaining % 60;
+            }
+
+            const timeHtml = '<strong>⏱️ Time:</strong> Elapsed: ' + elapsedMin + 'm ' + elapsedSec + 's' +
+                           (processedCount > 0 ? ' | Remaining: ~' + remainingMin + 'm ' + remainingSec + 's' : '') +
+                           ' | <strong>📊 Status:</strong> ' + processedCount + ' of ' + totalPosts + ' posts completed' +
+                           ' | <strong>🚀 Speed:</strong> ' + (processedCount > 0 ? (processedCount / (elapsed || 1)).toFixed(1) : '0') + ' posts/sec';
+            
+            timeInfo.html(timeHtml);
+        }
+
+        function processNextBatch() {
+            if (completed) return; // Guard: don't run after onComplete has fired
+            if (currentBatch >= totalBatches) {
+                completed = true; // Mark as done before calling onComplete
+                progressFill.css('width', '100%');
+                progressText.text('Import complete!');
+                updateTimeInfo();
+                addLog('✓ All batches imported successfully!', log);
+
+                if (failedPosts.length > 0) {
+                    const failedCount = failedPosts.length;
+                    addLog('⚠ ' + failedCount + ' post(s) failed due to timeout or errors.', log);
+                    const retryBtn = $('<button type="button" class="button button-secondary peiwm-retry-failed-btn" style="margin-top:0.75rem;background:#f97316;color:#fff;border-color:#f97316;">' +
+                        '🔄 Some were missed \u2014 retry ' + failedCount + ' failed post(s) now' +
+                    '</button>');
+                    log.after(retryBtn);
+                    retryBtn.on('click', function () {
+                        retryBtn.remove();
+                        const retryData = failedPosts.splice(0);
+                        addLog('🔄 Retrying ' + retryData.length + ' failed post(s)...', log);
+                        batchImportPosts(retryData, fileLabel, fileIndex, totalFiles, onComplete);
+                    });
+                    showSuccess('Batch import done! ' + totalPosts + ' processed. ' + failedCount + ' need retry.');
+                    // Always advance to next file even if there are failures
+                    // User can retry failed posts separately
+                    if (typeof onComplete === 'function') onComplete(failedCount);
+                } else {
+                    showSuccess('Batch import completed! ' + totalPosts + ' posts processed.');
+                    if (typeof onComplete === 'function') onComplete();
+                }
+
+                return;
+            }
+
+            const startIndex = currentBatch * batchSize;
+            const endIndex = Math.min(startIndex + batchSize, totalPosts);
+            const batchPosts = posts.slice(startIndex, endIndex);
+            const batchNum = currentBatch + 1;
+
+            addLog('📝 Processing batch ' + batchNum + '/' + totalBatches + ' (' + batchPosts.length + ' posts)...', log);
+
+            let batchProcessed = 0;
+            let batchImported = 0;
+            let batchSkipped = 0;
+            let batchFailed = 0;
+            let batchDone = false; // guard against double-firing when concurrent requests finish together
+            let activeRequests = 0;
+            let currentIndex = 0;
+
+            function processNextPost() {
+                // Start multiple requests concurrently
+                while (activeRequests < concurrentRequests && currentIndex < batchPosts.length) {
+                    const post = batchPosts[currentIndex];
+                    currentIndex++;
+                    activeRequests++;
+
+                    const downloadMissingImages = $('#peiwm-download-missing-images').is(':checked') ? '1' : '0';
+                    const checkMediaLibrary = $('#peiwm-check-media-library').is(':checked') ? '1' : '0';
+                    const mediaMatchMode = $('input[name="peiwm_media_match_mode"]:checked').val() || 'match_and_reuse';
+
+                    // BUG FIX: Track whether this specific request already handled failure
+                    // to prevent double-counting in both error() AND complete() callbacks.
+                    let requestFailed = false;
+
+                    $.ajax({
+                        url: peiwm_ajax.ajax_url,
+                        type: 'POST',
+                        timeout: 60000, // FIX: Reduced from 90s to 60s — prevents server pile-up. Each concurrent request holds a PHP worker; 10×90s = server collapse.
+                        data: {
+                            action: 'peiwm_import_post',
+                            nonce: peiwm_ajax.nonce,
+                            post_data: JSON.stringify(post),
+                            download_missing_images: downloadMissingImages,
+                            check_media_library: checkMediaLibrary,
+                            media_match_mode: mediaMatchMode,
+                            attach_media_to_post: document.getElementById('peiwm-attach-media-to-post') && document.getElementById('peiwm-attach-media-to-post').checked ? '1' : '0',
+                            force_status: post._force_status || 'original',
+                            peiwm_smart_author_mapping: $('#peiwm_smart_author_mapping').is(':checked') ? '1' : '0',
+                            peiwm_author_fallback: $('input[name="peiwm_author_fallback"]:checked').val() || 'current_user',
+                            peiwm_enable_wpml_support: $('#peiwm_enable_wpml_support').is(':checked') ? '1' : '0'
+                        },
+                        success: function (response) {
+                            if (response.success) {
+                                let logMessage = '';
+                                
+                                if (response.data.status === 'skipped') {
+                                    batchSkipped++;
+                                    logMessage = '  ⚠ Skipped: ' + post.post_title;
+                                } else if (response.data.status === 'updated') {
+                                    batchImported++;
+                                    logMessage = '  🔄 Updated: ' + post.post_title + ' (' + response.data.reason + ')';
+                                } else {
+                                    batchImported++;
+                                    logMessage = '  ✓ Imported: ' + post.post_title;
+                                }
+                                
+                                // Add language info if available
+                                if (response.data.language_info && response.data.language_info.success) {
+                                    logMessage += ' | ' + response.data.language_info.message;
+                                } else if (response.data.language_info && !response.data.language_info.success) {
+                                    logMessage += ' | ⚠ ' + response.data.language_info.message;
+                                }
+                                
+                                addLog(logMessage, log);
+                            } else {
+                                // FIX: Only mark failed here in success callback (server responded but with error)
+                                requestFailed = true;
+                                batchFailed++;
+                                failedPosts.push(post);
+                                addLog('  ✗ Failed: ' + post.post_title, log);
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            // FIX: Mark failed here — complete() will NOT push again because requestFailed = true
+                            requestFailed = true;
+                            batchFailed++;
+                            failedPosts.push(post);
+                            const errorMsg = status === 'timeout' ? 'timeout (server busy)' : (xhr.status === 502 ? '502 Bad Gateway — server overloaded' : error);
+                            addLog('  ✗ Error: ' + post.post_title + ' - ' + errorMsg, log);
+                        },
+                        complete: function () {
+                            // Ignore callbacks from previous batchImportPosts calls
+                            if (window._peiwmBatchPostsGen !== myGeneration) return;
+
+                            activeRequests--;
+                            batchProcessed++;
+
+                            // FIX: Do NOT push to failedPosts here — already handled in error() above.
+                            // Previously both error() and complete() pushed the post, doubling retry count.
+
+                            // Cap batchProcessed to avoid exceeding batchPosts.length
+                            const safeBatchProcessed = Math.min(batchProcessed, batchPosts.length);
+
+                            // Update progress bar — use actual global processedCount + current batch progress
+                            const totalProcessedSoFar = Math.min(processedCount + safeBatchProcessed, totalPosts);
+                            const progressPercent = Math.round((totalProcessedSoFar / totalPosts) * 100);
+                            progressFill.css('width', progressPercent + '%');
+                            const fileLabel2 = totalFiles > 1 ? ' — File ' + fileIndex + '/' + totalFiles : '';
+                            // FIX: Show the real current batch (currentBatch+1) not stale batchNum from outer closure
+                            const displayBatch = currentBatch + 1;
+                            progressText.text('Processing: ' + totalProcessedSoFar + ' of ' + totalPosts + ' posts (' + progressPercent + '%) - Batch ' + displayBatch + '/' + totalBatches + fileLabel2);
+                            
+                            // Update time info
+                            updateTimeInfo();
+
+                            if (batchProcessed >= batchPosts.length && !batchDone) {
+                                batchDone = true; // prevent double-firing from concurrent completions
+                                // Batch complete
+                                addLog('✓ Batch ' + batchNum + ' complete: ' + batchImported + ' imported, ' + batchSkipped + ' skipped, ' + batchFailed + ' failed', log);
+                                
+                                currentBatch++;
+                                processedCount += batchPosts.length;
+                                
+                                const finalProgressPercent = Math.round((processedCount / totalPosts) * 100);
+                                progressFill.css('width', finalProgressPercent + '%');
+                                progressText.text('Batch ' + batchNum + '/' + totalBatches + ' complete. Processed ' + processedCount + ' of ' + totalPosts + ' posts (' + finalProgressPercent + '%)' + (totalFiles > 1 ? ' — File ' + fileIndex + '/' + totalFiles : ''));
+
+                                // FIX: Add a backoff delay after any batch had failures to let the server recover
+                                const batchDelay = batchFailed > 0
+                                    ? Math.max(peiwm_batch_settings.delay || 500, 1500)
+                                    : (peiwm_batch_settings.delay || 500);
+                                setTimeout(processNextBatch, batchDelay);
+                            } else if (batchProcessed < batchPosts.length) {
+                                // Continue processing
+                                processNextPost();
+                            }
+                        }
+                    });
+                }
+            }
+
+            processNextPost();
+        }
+
+        processNextBatch();
+    }
+
+    // Batch Import Pages
+    function batchImportPages(pages, onComplete) {
+        const progress = $('#peiwm-pages-progress');
+        const progressFill = progress.find('.peiwm-progress-fill');
+        const progressText = progress.find('.peiwm-progress-text');
+        const log = progress.find('.peiwm-log');
+
+        progress.show();
+        progressFill.css('width', '0%');
+        log.empty();
+
+        const batchSize = peiwm_batch_settings.page_batch_size || 20;
+        const totalPages = pages.length;
+        const totalBatches = Math.ceil(totalPages / batchSize);
+        // FIX: Hard cap concurrent at 3 — 10 workers * 60s = server overload / 502
+        const rawConcurrent = peiwm_batch_settings.concurrent_requests || 3;
+        const concurrentRequests = Math.min(rawConcurrent, 3);
+
+        addLog('📦 Batch import started: ' + totalPages + ' pages in ' + totalBatches + ' batches', log);
+        progressText.text('Starting batch import...');
+
+        let currentBatch = 0;
+        let processedCount = 0;
+        const failedPages = []; // Track all failed/timeout pages for retry
+
+        function processNextBatch() {
+            if (currentBatch >= totalBatches) {
+                progressFill.css('width', '100%');
+                progressText.text('Import complete!');
+                addLog('✓ All batches imported successfully!', log);
+
+                if (failedPages.length > 0) {
+                    const failedCount = failedPages.length;
+                    addLog('⚠ ' + failedCount + ' page(s) failed due to timeout or errors.', log);
+
+                    const retryBtn = $('<button type="button" class="button button-secondary peiwm-retry-failed-btn" style="margin-top:0.75rem;background:#f97316;color:#fff;border-color:#f97316;">' +
+                        '🔄 Some were missed \u2014 retry ' + failedCount + ' failed page(s) now' +
+                    '</button>');
+
+                    log.after(retryBtn);
+                    retryBtn.on('click', function () {
+                        retryBtn.remove();
+                        const retryData = failedPages.splice(0);
+                        addLog('🔄 Retrying ' + retryData.length + ' failed page(s)...', log);
+                        batchImportPages(retryData, onComplete);
+                    });
+                    showSuccess('Batch import done! ' + totalPages + ' processed. ' + failedCount + ' need retry.');
+                    // Always advance to next file
+                    if (typeof onComplete === 'function') onComplete(failedCount);
+                } else {
+                    showSuccess('Batch import completed! ' + totalPages + ' pages processed.');
+                    if (typeof onComplete === 'function') onComplete(0);
+                }
+
+                return;
+            }
+
+            const startIndex = currentBatch * batchSize;
+            const endIndex = Math.min(startIndex + batchSize, totalPages);
+            const batchPages = pages.slice(startIndex, endIndex);
+            const batchNum = currentBatch + 1;
+
+            addLog('📝 Processing batch ' + batchNum + '/' + totalBatches + ' (' + batchPages.length + ' pages)...', log);
+
+            let batchProcessed = 0;
+            let batchImported = 0;
+            let batchSkipped = 0;
+            let batchFailed = 0;
+            let activeRequests = 0;
+            let currentIndex = 0;
+
+            function processNextPage() {
+                // Start multiple requests concurrently
+                while (activeRequests < concurrentRequests && currentIndex < batchPages.length) {
+                    const page = batchPages[currentIndex];
+                    currentIndex++;
+                    activeRequests++;
+
+                    const downloadMissingImages = $('#peiwm-download-missing-page-images').is(':checked') ? '1' : '0';
+                    const checkMediaLibrary = $('#peiwm-check-media-library-pages').is(':checked') ? '1' : '0';
+                    const mediaMatchMode = $('input[name="peiwm_media_match_mode_pages"]:checked').val() || 'match_and_reuse';
+
+                    $.ajax({
+                        url: peiwm_ajax.ajax_url,
+                        type: 'POST',
+                        timeout: 90000, // 90 seconds per page
+                        data: {
+                            action: 'peiwm_import_page',
+                            nonce: peiwm_ajax.nonce,
+                            page_data: JSON.stringify(page),
+                            download_missing_images: downloadMissingImages,
+                            check_media_library: checkMediaLibrary,
+                            media_match_mode: mediaMatchMode,
+                            attach_media_to_post: document.getElementById('peiwm-attach-media-to-page') && document.getElementById('peiwm-attach-media-to-page').checked ? '1' : '0',
+                            force_status: page._force_status || 'original'
+                        },
+                        success: function (response) {
+                            if (response.success) {
+                                if (response.data.status === 'skipped') {
+                                    batchSkipped++;
+                                    addLog('  ⚠ Skipped: ' + page.post_title, log);
+                                } else if (response.data.status === 'updated') {
+                                    batchImported++;
+                                    addLog('  🔄 Updated: ' + page.post_title + ' (' + response.data.reason + ')', log);
+                                } else {
+                                    batchImported++;
+                                    addLog('  ✓ Imported: ' + page.post_title, log);
+                                }
+                            } else {
+                                batchFailed++;
+                                failedPages.push(page);
+                                addLog('  ✗ Failed: ' + page.post_title, log);
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            batchFailed++;
+                            failedPages.push(page);
+                            addLog('  ✗ Error: ' + page.post_title + ' - ' + error, log);
+                        },
+                        complete: function () {
+                            activeRequests--;
+                            batchProcessed++;
+
+                            // Update progress bar in real-time after each page
+                            const totalProcessedSoFar = processedCount + batchProcessed;
+                            const progressPercent = Math.round((totalProcessedSoFar / totalPages) * 100);
+                            progressFill.css('width', progressPercent + '%');
+                            progressText.text('Processing: ' + totalProcessedSoFar + ' of ' + totalPages + ' pages (' + progressPercent + '%) - Batch ' + batchNum + '/' + totalBatches);
+
+                            if (batchProcessed >= batchPages.length) {
+                                // Batch complete
+                                addLog('✓ Batch ' + batchNum + ' complete: ' + batchImported + ' imported, ' + batchSkipped + ' skipped, ' + batchFailed + ' failed', log);
+                                
+                                currentBatch++;
+                                processedCount += batchPages.length;
+                                
+                                const finalProgressPercent = Math.round((processedCount / totalPages) * 100);
+                                progressFill.css('width', finalProgressPercent + '%');
+                                progressText.text('Batch ' + batchNum + '/' + totalBatches + ' complete. Processed ' + processedCount + ' of ' + totalPages + ' pages (' + finalProgressPercent + '%)');
+
+                                // Process next batch with minimal delay
+                                setTimeout(processNextBatch, peiwm_batch_settings.delay || 500);
+                            } else {
+                                // Continue processing
+                                processNextPage();
+                            }
+                        }
+                    });
+                }
+            }
+
+            processNextPage();
+        }
+
+        processNextBatch();
+    }
+
+    // Batch Import Media (3-Phase Chunked Architecture)
+    function batchImportMedia(file, onComplete) {
+        const progress = $('#peiwm-media-progress');
+        const progressFill = progress.find('.peiwm-progress-fill');
+        const progressText = progress.find('.peiwm-progress-text');
+        const log = progress.find('.peiwm-log');
+
+        progress.show();
+        progressFill.css('width', '0%');
+        log.empty();
+
+        addLog('📦 Starting batch media import...', log);
+        addLog('File: ' + file.name + ' (' + (file.size / (1024 * 1024)).toFixed(2) + ' MB)', log);
+        progressText.text('Phase 1/3: Uploading archive...');
+
+        // Phase 1: Upload ZIP file only (no blocking extraction on server)
+        const formData = new FormData();
+        formData.append('action', 'peiwm_import_media_upload');
+        formData.append('nonce', peiwm_ajax.nonce);
+        formData.append('media_file', file);
+
+        $.ajax({
+            url: peiwm_ajax.ajax_url,
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            timeout: 600000, // 10 minutes for large file transfer
+            xhr: function () {
+                const xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener('progress', function (evt) {
+                    if (evt.lengthComputable) {
+                        const percentComplete = Math.round((evt.loaded / evt.total) * 100);
+                        progressFill.css('width', percentComplete + '%');
+                        progressText.text('Uploading archive... (' + percentComplete + '%)');
+                    }
+                }, false);
+                return xhr;
+            },
+            success: function (response) {
+                if (response.success) {
+                    const batchId = response.data.batch_id;
+                    const totalZipFiles = response.data.total_files;
+                    addLog('✓ Phase 1 complete: Archive uploaded successfully (' + totalZipFiles + ' entries).', log);
+                    
+                    // Phase 2: Chunked Extraction loop
+                    runChunkedExtraction(batchId, totalZipFiles);
+                } else {
+                    const msg = (response.data && response.data.message) ? response.data.message : 'Unknown upload error';
+                    progressText.text('Upload failed: ' + msg);
+                    addLog('✗ Error: ' + msg, log, 'peiwm-log-error');
+                    showError('Upload failed: ' + msg);
+                    if (typeof onComplete === 'function') onComplete();
+                }
+            },
+            error: function (xhr, status, error) {
+                let errorMsg = error;
+                if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                    errorMsg = xhr.responseJSON.data.message;
+                } else if (xhr.responseText) {
+                    try {
+                        const parsed = JSON.parse(xhr.responseText);
+                        if (parsed.data && parsed.data.message) {
+                            errorMsg = parsed.data.message;
+                        }
+                    } catch (e) {
+                        if (xhr.responseText.includes('Maximum execution time')) {
+                            errorMsg = 'Server timeout - server upload limit or time limit exceeded';
+                        } else if (xhr.responseText.includes('memory')) {
+                            errorMsg = 'Server memory limit exceeded';
+                        } else if (xhr.status === 413) {
+                            errorMsg = 'File too large - exceeds server upload limit';
+                        } else if (xhr.status === 0) {
+                            errorMsg = 'Network error - check your connection';
+                        }
+                    }
+                }
+
+                addLog('✗ Upload error: ' + errorMsg, log, 'peiwm-log-error');
+                if (status === 'timeout') {
+                    showError('Upload timed out. Please try with a smaller file or increase server upload timeout.');
+                } else {
+                    showError('Upload failed: ' + errorMsg);
+                }
+                if (typeof onComplete === 'function') onComplete();
+            }
+        });
+
+        // Phase 2: Chunked Extraction
+        function runChunkedExtraction(batchId, totalZipFiles) {
+            progressFill.css('width', '0%');
+            progressText.text('Phase 2/3: Unpacking archive in chunks...');
+            addLog('📦 Unpacking archive in small chunks to prevent server timeouts...', log);
+
+            const chunkSize = 35;
+            let currentOffset = 0;
+
+            function extractNextChunk() {
+                $.ajax({
+                    url: peiwm_ajax.ajax_url,
+                    type: 'POST',
+                    timeout: 120000,
+                    data: {
+                        action: 'peiwm_import_media_extract_chunk',
+                        nonce: peiwm_ajax.nonce,
+                        batch_id: batchId,
+                        offset: currentOffset,
+                        chunk_size: chunkSize
+                    },
+                    success: function (resp) {
+                        if (resp.success) {
+                            const processed = resp.data.processed;
+                            const total = resp.data.total_files;
+                            const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 100;
+                            
+                            progressFill.css('width', percent + '%');
+                            progressText.text('Unpacking archive: ' + processed + ' of ' + total + ' files (' + percent + '%)');
+
+                            if (resp.data.done) {
+                                addLog('✓ Phase 2 complete: All ' + total + ' files extracted successfully.', log);
+                                finalizeExtraction(batchId);
+                            } else {
+                                currentOffset = resp.data.next_offset;
+                                extractNextChunk();
+                            }
+                        } else {
+                            const msg = (resp.data && resp.data.message) ? resp.data.message : 'Extraction error';
+                            addLog('✗ Extraction error: ' + msg, log, 'peiwm-log-error');
+                            showError('Extraction failed: ' + msg);
+                            if (typeof onComplete === 'function') onComplete();
+                        }
+                    },
+                    error: function (xhr, status, err) {
+                        addLog('✗ Extraction request error: ' + err, log, 'peiwm-log-error');
+                        showError('Extraction failed: ' + err);
+                        if (typeof onComplete === 'function') onComplete();
+                    }
+                });
+            }
+
+            extractNextChunk();
+        }
+
+        // Phase 3: Finalize & Read Metadata
+        function finalizeExtraction(batchId) {
+            progressText.text('Phase 3/3: Reading metadata...');
+            addLog('📋 Reading metadata and preparing media library import...', log);
+
+            $.ajax({
+                url: peiwm_ajax.ajax_url,
+                type: 'POST',
+                timeout: 60000,
+                data: {
+                    action: 'peiwm_import_media_finalize',
+                    nonce: peiwm_ajax.nonce,
+                    batch_id: batchId
+                },
+                success: function (resp) {
+                    if (resp.success) {
+                        const totalFiles = resp.data.total_files;
+                        const blockedFiles = resp.data.blocked_files || [];
+                        const blockedCount = resp.data.blocked_count || 0;
+                        const batchSize = peiwm_batch_settings.media_batch_size || 50;
+                        const totalBatches = Math.ceil(totalFiles / batchSize);
+
+                        const stats = { imported: 0, skipped: 0, failed: 0, blocked: blockedCount };
+
+                        if (blockedCount > 0) {
+                            addLog('⚠️ ' + blockedCount + ' file(s) blocked due to disallowed file type', log, 'peiwm-log-warning');
+                            blockedFiles.slice(0, 10).forEach(function(filename) {
+                                addLog('  ✗ Blocked: ' + filename, log, 'peiwm-log-warning');
+                            });
+                            if (blockedCount > 10) {
+                                addLog('  ... and ' + (blockedCount - 10) + ' more blocked files', log, 'peiwm-log-warning');
+                            }
+                            addLog('💡 To allow these file types, go to Settings and update "Allowed Media File Types"', log, 'peiwm-log-info');
+                        }
+
+                        addLog('✓ Ready: Found ' + totalFiles + ' media items. Processing in ' + totalBatches + ' batches...', log);
+                        progressFill.css('width', '0%');
+                        progressText.text('Starting file import: 0 of ' + totalFiles + ' files (0%)');
+
+                        processBatchMediaImport(batchId, 0, totalFiles, totalBatches, batchSize, onComplete, stats);
+                    } else {
+                        const msg = (resp.data && resp.data.message) ? resp.data.message : 'Failed to finalize metadata';
+                        addLog('✗ Error: ' + msg, log, 'peiwm-log-error');
+                        showError('Metadata error: ' + msg);
+                        if (typeof onComplete === 'function') onComplete();
+                    }
+                },
+                error: function (xhr, status, err) {
+                    addLog('✗ Finalize request error: ' + err, log, 'peiwm-log-error');
+                    showError('Failed to read metadata: ' + err);
+                    if (typeof onComplete === 'function') onComplete();
+                }
+            });
+        }
+    }
+
+    // Process batch media import with safe concurrency pool
+    function processBatchMediaImport(batchId, currentIndex, totalFiles, totalBatches, batchSize, onComplete, stats) {
+        const progress = $('#peiwm-media-progress');
+        const progressFill = progress.find('.peiwm-progress-fill');
+        const progressText = progress.find('.peiwm-progress-text');
+        const log = progress.find('.peiwm-log');
+        // Cap concurrent requests at 3-5 for safety across shared hosts and local setups
+        const maxConcurrent = Math.min(peiwm_batch_settings.concurrent_requests || 3, 5);
+
+        if (!stats) {
+            stats = { imported: 0, skipped: 0, failed: 0, blocked: 0 };
+        }
+
+        if (currentIndex >= totalFiles) {
+            progressFill.css('width', '100%');
+            progressText.text('Import complete!');
+            
+            const summaryParts = [];
+            if (stats.imported > 0) summaryParts.push(stats.imported + ' imported');
+            if (stats.skipped > 0) summaryParts.push(stats.skipped + ' skipped');
+            if (stats.failed > 0) summaryParts.push(stats.failed + ' failed');
+            if (stats.blocked > 0) summaryParts.push(stats.blocked + ' blocked');
+            
+            const summaryMsg = '✓ Import complete! ' + summaryParts.join(', ');
+            addLog(summaryMsg, log, 'peiwm-log-success');
+            showSuccess('Batch media import completed! ' + totalFiles + ' files processed.');
+
+            // Cleanup batch temporary files
+            $.ajax({
+                url: peiwm_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'peiwm_cleanup_media_batch',
+                    nonce: peiwm_ajax.nonce,
+                    batch_id: batchId
+                },
+                success: function (response) {
+                    if (response.success) {
+                        addLog('✓ Cleanup completed', log);
+                    }
+                },
+                complete: function () {
+                    if (typeof onComplete === 'function') onComplete();
+                }
+            });
+            return;
+        }
+
+        const currentBatch = Math.floor(currentIndex / batchSize) + 1;
+        const endIndex = Math.min(currentIndex + maxConcurrent, totalFiles);
+        let activeRequests = 0;
+        let processedInThisCall = 0;
+
+        for (let i = currentIndex; i < endIndex; i++) {
+            activeRequests++;
+            const fileIndex = i;
+
+            $.ajax({
+                url: peiwm_ajax.ajax_url,
+                type: 'POST',
+                timeout: 120000,
+                data: {
+                    action: 'peiwm_import_media_file',
+                    nonce: peiwm_ajax.nonce,
+                    batch_id: batchId,
+                    file_index: fileIndex
+                },
+                success: function (response) {
+                    if (response.success) {
+                        if (response.data.status === 'skipped') {
+                            stats.skipped++;
+                            addLog('  ⚠ Skipped: ' + response.data.filename + ' (' + response.data.reason + ')', log, 'peiwm-log-warning');
+                        } else if (response.data.status === 'failed') {
+                            stats.failed++;
+                            addLog('  ✗ Failed: ' + response.data.filename + ' - ' + response.data.reason, log, 'peiwm-log-error');
+                        } else {
+                            stats.imported++;
+                            addLog('  ✓ Imported: ' + response.data.filename + ' (' + response.data.file_size_formatted + ')', log);
+                        }
+                    } else {
+                        stats.failed++;
+                        addLog('  ✗ Failed: ' + response.data.message, log, 'peiwm-log-error');
+                    }
+                    
+                    const completedFiles = fileIndex + 1;
+                    const progressPercent = Math.round((completedFiles / totalFiles) * 100);
+                    progressFill.css('width', progressPercent + '%');
+                    progressText.text('Processing: ' + completedFiles + ' of ' + totalFiles + ' files (' + progressPercent + '%) - Batch ' + currentBatch + '/' + totalBatches);
+                },
+                error: function (xhr, status, error) {
+                    stats.failed++;
+                    addLog('  ✗ Error (file ' + (fileIndex + 1) + '): ' + error, log, 'peiwm-log-error');
+                },
+                complete: function () {
+                    activeRequests--;
+                    processedInThisCall++;
+
+                    if ((fileIndex + 1) % batchSize === 0 || fileIndex + 1 === totalFiles) {
+                        const filesInBatch = Math.min(batchSize, totalFiles - (currentBatch - 1) * batchSize);
+                        addLog('✓ Batch ' + currentBatch + '/' + totalBatches + ' complete (' + filesInBatch + ' files)', log);
+                    }
+
+                    if (activeRequests === 0) {
+                        processBatchMediaImport(batchId, currentIndex + processedInThisCall, totalFiles, totalBatches, batchSize, onComplete, stats);
+                    }
+                }
+            });
+        }
+    }
+
+    // Helper functions - use existing modal functions from main admin.js
+    function addLog(message, logContainer, className) {
+        if (!logContainer) return;
+        const time = new Date().toLocaleTimeString();
+        const classAttr = className ? ' class="peiwm-log-entry ' + className + '"' : ' class="peiwm-log-entry"';
+        logContainer.append('<div' + classAttr + '>[' + time + '] ' + message + '</div>');
+        logContainer.scrollTop(logContainer[0].scrollHeight);
+    }
 
     function showSuccess(message) {
         // Use the existing showModal function from admin.js
