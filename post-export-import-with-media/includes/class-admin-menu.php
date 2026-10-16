@@ -3796,7 +3796,7 @@ class PEIWM_Admin_Menu {
 			if ( ! class_exists( 'PEIWM_Media_Alt_Editor_Page_Pro' ) && file_exists( PEIWM_PRO_PLUGIN_PATH . 'includes/class-media-alt-editor-page-pro.php' ) ) {
 				require_once PEIWM_PRO_PLUGIN_PATH . 'includes/class-media-alt-editor-page-pro.php';
 			}
-			if ( class_exists( 'PEIWM_Media_Alt_Editor_Page_Pro' ) ) {
+			if ( class_exists( 'PEIWM_Media_Alt_Editor_Page_Pro' ) && method_exists( 'PEIWM_Media_Alt_Editor_Page_Pro', 'render' ) ) {
 				PEIWM_Media_Alt_Editor_Page_Pro::render();
 				$this->render_modal_templates();
 				return;

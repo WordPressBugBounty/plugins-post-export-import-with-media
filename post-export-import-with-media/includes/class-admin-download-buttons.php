@@ -254,8 +254,19 @@ class PEIWM_Admin_Download_Buttons {
 			wp_send_json_error( array( 'message' => esc_html__( 'Theme slug not provided', 'post-export-import-with-media' ) ) );
 		}
 
+		// Prevent path traversal sequences and separators in theme slug
+		if ( preg_match( '/[\/\\\\]|\.\./', $theme_slug ) || false !== strpos( $theme_slug, "\0" ) ) {
+			wp_send_json_error( array( 'message' => esc_html__( 'Invalid theme slug provided', 'post-export-import-with-media' ) ) );
+		}
+
+		// Strictly validate against installed themes
+		$installed_themes = wp_get_themes();
+		if ( ! array_key_exists( $theme_slug, $installed_themes ) ) {
+			wp_send_json_error( array( 'message' => esc_html__( 'Theme not found', 'post-export-import-with-media' ) ) );
+		}
+
 		try {
-			$theme = wp_get_theme( $theme_slug );
+			$theme = $installed_themes[ $theme_slug ];
 			
 			if ( ! $theme->exists() ) {
 				wp_send_json_error( array( 'message' => esc_html__( 'Theme not found', 'post-export-import-with-media' ) ) );
@@ -299,7 +310,16 @@ class PEIWM_Admin_Download_Buttons {
 			wp_send_json_error( array( 'message' => esc_html__( 'Plugin file not provided', 'post-export-import-with-media' ) ) );
 		}
 
+		// Prevent path traversal sequences and null bytes in plugin file
+		if ( false !== strpos( $plugin_file, '..' ) || false !== strpos( $plugin_file, "\0" ) ) {
+			wp_send_json_error( array( 'message' => esc_html__( 'Invalid plugin file provided', 'post-export-import-with-media' ) ) );
+		}
+
 		try {
+			if ( ! function_exists( 'get_plugins' ) ) {
+				require_once ABSPATH . 'wp-admin/includes/plugin.php';
+			}
+
 			$all_plugins = get_plugins();
 			
 			if ( ! isset( $all_plugins[ $plugin_file ] ) ) {
@@ -339,6 +359,11 @@ class PEIWM_Admin_Download_Buttons {
 			return false;
 		}
 
+		$safe_theme_slug = sanitize_file_name( basename( $theme_slug ) );
+		if ( empty( $safe_theme_slug ) || '..' === $safe_theme_slug || '.' === $safe_theme_slug ) {
+			return false;
+		}
+
 		$upload_dir = wp_upload_dir();
 		$export_dir = $upload_dir['basedir'] . '/peiwm-exports/';
 		
@@ -346,7 +371,24 @@ class PEIWM_Admin_Download_Buttons {
 			return false;
 		}
 
-		$zip_filename = 'theme-' . $theme_slug . '-' . gmdate( 'Y-m-d-H-i-s' ) . '.zip';
+		$theme_path      = $theme->get_stylesheet_directory();
+		$real_theme_path = realpath( $theme_path );
+		$theme_root      = $theme->get_theme_root();
+		$real_theme_root = $theme_root ? realpath( $theme_root ) : realpath( get_theme_root() );
+
+		// Validate that theme path exists and is strictly inside theme root directory
+		if ( ! $real_theme_path || ! $real_theme_root || ! is_dir( $real_theme_path ) ) {
+			return false;
+		}
+
+		$normalized_theme = rtrim( wp_normalize_path( $real_theme_path ), '/' );
+		$normalized_root  = rtrim( wp_normalize_path( $real_theme_root ), '/' );
+
+		if ( $normalized_theme === $normalized_root || 0 !== strpos( $normalized_theme, $normalized_root . '/' ) ) {
+			return false;
+		}
+
+		$zip_filename = 'theme-' . $safe_theme_slug . '-' . gmdate( 'Y-m-d-H-i-s' ) . '.zip';
 		$zip_path = $export_dir . $zip_filename;
 
 		$zip = new ZipArchive();
@@ -354,11 +396,7 @@ class PEIWM_Admin_Download_Buttons {
 			return false;
 		}
 
-		$theme_path = $theme->get_stylesheet_directory();
-		
-		if ( is_dir( $theme_path ) ) {
-			$this->add_directory_to_zip( $zip, $theme_path, $theme_slug );
-		}
+		$this->add_directory_to_zip( $zip, $real_theme_path, $safe_theme_slug );
 
 		$zip->close();
 
@@ -397,31 +435,59 @@ class PEIWM_Admin_Download_Buttons {
 			$plugin_slug = basename( $plugin_file, '.php' );
 		}
 
-		$zip_filename = 'plugin-' . $plugin_slug . '-' . gmdate( 'Y-m-d-H-i-s' ) . '.zip';
-		$zip_path = $export_dir . $zip_filename;
-
-		$zip = new ZipArchive();
-		if ( $zip->open( $zip_path, ZipArchive::CREATE ) !== true ) {
+		$safe_plugin_slug = sanitize_file_name( basename( $plugin_slug ) );
+		if ( empty( $safe_plugin_slug ) || '..' === $safe_plugin_slug || '.' === $safe_plugin_slug ) {
 			return false;
 		}
 
+		$zip_filename = 'plugin-' . $safe_plugin_slug . '-' . gmdate( 'Y-m-d-H-i-s' ) . '.zip';
+		$zip_path = $export_dir . $zip_filename;
+
 		$plugins_dir = WP_PLUGIN_DIR;
+		$real_plugins_dir = realpath( $plugins_dir );
+		if ( ! $real_plugins_dir ) {
+			return false;
+		}
+
+		$normalized_root = rtrim( wp_normalize_path( $real_plugins_dir ), '/' );
 		
 		if ( $plugin_slug === basename( $plugin_file, '.php' ) ) {
 			// Single file plugin
 			$plugin_path = $plugins_dir . '/' . $plugin_file;
-			if ( file_exists( $plugin_path ) ) {
-				$zip->addFile( $plugin_path, $plugin_file );
+			$real_plugin_path = realpath( $plugin_path );
+			if ( ! $real_plugin_path || ! file_exists( $real_plugin_path ) ) {
+				return false;
 			}
+			$normalized_plugin = wp_normalize_path( $real_plugin_path );
+			if ( 0 !== strpos( $normalized_plugin, $normalized_root . '/' ) ) {
+				return false;
+			}
+
+			$zip = new ZipArchive();
+			if ( $zip->open( $zip_path, ZipArchive::CREATE ) !== true ) {
+				return false;
+			}
+			$zip->addFile( $real_plugin_path, sanitize_file_name( $plugin_file ) );
+			$zip->close();
 		} else {
 			// Directory plugin
 			$plugin_path = $plugins_dir . '/' . $plugin_slug;
-			if ( is_dir( $plugin_path ) ) {
-				$this->add_directory_to_zip( $zip, $plugin_path, $plugin_slug );
+			$real_plugin_path = realpath( $plugin_path );
+			if ( ! $real_plugin_path || ! is_dir( $real_plugin_path ) ) {
+				return false;
 			}
-		}
+			$normalized_plugin = rtrim( wp_normalize_path( $real_plugin_path ), '/' );
+			if ( $normalized_plugin === $normalized_root || 0 !== strpos( $normalized_plugin, $normalized_root . '/' ) ) {
+				return false;
+			}
 
-		$zip->close();
+			$zip = new ZipArchive();
+			if ( $zip->open( $zip_path, ZipArchive::CREATE ) !== true ) {
+				return false;
+			}
+			$this->add_directory_to_zip( $zip, $real_plugin_path, $safe_plugin_slug );
+			$zip->close();
+		}
 
 		if ( ! file_exists( $zip_path ) ) {
 			return false;
@@ -447,12 +513,17 @@ class PEIWM_Admin_Download_Buttons {
 			RecursiveIteratorIterator::SELF_FIRST
 		);
 
+		$normalized_source = rtrim( wp_normalize_path( $source_dir ), '/' );
+
 		foreach ( $iterator as $file ) {
 			$file_path = $file->getRealPath();
-			$relative_path = $zip_dir . '/' . substr( $file_path, strlen( $source_dir ) + 1 );
-			
-			// Convert Windows paths to Unix paths for ZIP
-			$relative_path = str_replace( '\\', '/', $relative_path );
+			if ( ! $file_path ) {
+				continue;
+			}
+
+			$normalized_file = wp_normalize_path( $file_path );
+			$sub_path = ltrim( substr( $normalized_file, strlen( $normalized_source ) ), '/' );
+			$relative_path = $zip_dir . '/' . $sub_path;
 
 			if ( $file->isDir() ) {
 				$zip->addEmptyDir( $relative_path );

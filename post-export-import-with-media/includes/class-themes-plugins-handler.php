@@ -396,13 +396,20 @@ class PEIWM_Themes_Plugins_Handler {
 			return false;
 		}
 
-		$themes_dir = get_theme_root();
+		$themes_dir      = get_theme_root();
+		$real_themes_dir = realpath( $themes_dir );
+		$normalized_root = $real_themes_dir ? rtrim( wp_normalize_path( $real_themes_dir ), '/' ) : '';
 		
 		foreach ( $themes as $theme_slug => $theme ) {
-			$theme_path = $themes_dir . '/' . $theme_slug;
+			$theme_path      = $themes_dir . '/' . $theme_slug;
+			$real_theme_path = realpath( $theme_path );
 			
-			if ( is_dir( $theme_path ) ) {
-				$this->add_directory_to_zip( $zip, $theme_path, 'themes/' . $theme_slug );
+			if ( $real_theme_path && is_dir( $real_theme_path ) && $normalized_root ) {
+				$normalized_theme = rtrim( wp_normalize_path( $real_theme_path ), '/' );
+				if ( $normalized_theme !== $normalized_root && 0 === strpos( $normalized_theme, $normalized_root . '/' ) ) {
+					$safe_slug = sanitize_file_name( basename( $theme_slug ) );
+					$this->add_directory_to_zip( $zip, $real_theme_path, 'themes/' . $safe_slug );
+				}
 			}
 		}
 
@@ -445,7 +452,9 @@ class PEIWM_Themes_Plugins_Handler {
 			return false;
 		}
 
-		$plugins_dir = WP_PLUGIN_DIR;
+		$plugins_dir      = WP_PLUGIN_DIR;
+		$real_plugins_dir = realpath( $plugins_dir );
+		$normalized_root  = $real_plugins_dir ? rtrim( wp_normalize_path( $real_plugins_dir ), '/' ) : '';
 		
 		foreach ( $plugins as $plugin_file => $plugin_data ) {
 			$plugin_slug = dirname( $plugin_file );
@@ -453,14 +462,23 @@ class PEIWM_Themes_Plugins_Handler {
 			if ( $plugin_slug === '.' ) {
 				// Single file plugin
 				$plugin_path = $plugins_dir . '/' . $plugin_file;
-				if ( file_exists( $plugin_path ) ) {
-					$zip->addFile( $plugin_path, 'plugins/' . $plugin_file );
+				$real_path   = realpath( $plugin_path );
+				if ( $real_path && file_exists( $real_path ) && $normalized_root ) {
+					$norm_path = wp_normalize_path( $real_path );
+					if ( 0 === strpos( $norm_path, $normalized_root . '/' ) ) {
+						$zip->addFile( $real_path, 'plugins/' . sanitize_file_name( $plugin_file ) );
+					}
 				}
 			} else {
 				// Directory plugin
 				$plugin_path = $plugins_dir . '/' . $plugin_slug;
-				if ( is_dir( $plugin_path ) ) {
-					$this->add_directory_to_zip( $zip, $plugin_path, 'plugins/' . $plugin_slug );
+				$real_path   = realpath( $plugin_path );
+				if ( $real_path && is_dir( $real_path ) && $normalized_root ) {
+					$norm_path = rtrim( wp_normalize_path( $real_path ), '/' );
+					if ( $norm_path !== $normalized_root && 0 === strpos( $norm_path, $normalized_root . '/' ) ) {
+						$safe_slug = sanitize_file_name( basename( $plugin_slug ) );
+						$this->add_directory_to_zip( $zip, $real_path, 'plugins/' . $safe_slug );
+					}
 				}
 			}
 		}
@@ -491,12 +509,17 @@ class PEIWM_Themes_Plugins_Handler {
 			RecursiveIteratorIterator::SELF_FIRST
 		);
 
+		$normalized_source = rtrim( wp_normalize_path( $source_dir ), '/' );
+
 		foreach ( $iterator as $file ) {
 			$file_path = $file->getRealPath();
-			$relative_path = $zip_dir . '/' . substr( $file_path, strlen( $source_dir ) + 1 );
-			
-			// Convert Windows paths to Unix paths for ZIP
-			$relative_path = str_replace( '\\', '/', $relative_path );
+			if ( ! $file_path ) {
+				continue;
+			}
+
+			$normalized_file = wp_normalize_path( $file_path );
+			$sub_path = ltrim( substr( $normalized_file, strlen( $normalized_source ) ), '/' );
+			$relative_path = $zip_dir . '/' . $sub_path;
 
 			if ( $file->isDir() ) {
 				$zip->addEmptyDir( $relative_path );
@@ -545,15 +568,27 @@ class PEIWM_Themes_Plugins_Handler {
 			return array( 'success' => false, 'message' => esc_html__( 'Failed to open ZIP file', 'post-export-import-with-media' ) );
 		}
 
+		// Security: Validate ZIP entries against directory traversal (Zip-Slip)
+		for ( $i = 0; $i < $zip->numFiles; $i++ ) {
+			$stat = $zip->statIndex( $i );
+			$entry_name = $stat['name'];
+			if ( false !== strpos( $entry_name, '..' ) || 0 === strpos( $entry_name, '/' ) || 0 === strpos( $entry_name, '\\' ) || false !== strpos( $entry_name, "\0" ) ) {
+				$zip->close();
+				$this->rrmdir( $temp_dir );
+				return array( 'success' => false, 'message' => esc_html__( 'Invalid or insecure file path in ZIP archive', 'post-export-import-with-media' ) );
+			}
+		}
+
 		$extract_dir = $temp_dir . 'extracted/';
 		wp_mkdir_p( $extract_dir );
 		$zip->extractTo( $extract_dir );
 		$zip->close();
 
-		$themes_dir      = get_theme_root();
-		$imported_themes = array();
-		$skipped_themes  = array();
-		$failed_themes   = array();
+		$themes_dir            = get_theme_root();
+		$normalized_themes_dir = rtrim( wp_normalize_path( $themes_dir ), '/' );
+		$imported_themes       = array();
+		$skipped_themes        = array();
+		$failed_themes         = array();
 
 		$extracted_themes_dir = $extract_dir . 'themes/';
 		if ( ! is_dir( $extracted_themes_dir ) ) {
@@ -564,9 +599,19 @@ class PEIWM_Themes_Plugins_Handler {
 		$theme_slugs = array_diff( scandir( $extracted_themes_dir ), array( '.', '..' ) );
 
 		foreach ( $theme_slugs as $theme_slug ) {
-			$theme_slug      = sanitize_file_name( $theme_slug );
-			$extracted_theme = $extracted_themes_dir . $theme_slug;
-			$target_theme    = $themes_dir . '/' . $theme_slug;
+			$theme_slug = sanitize_file_name( $theme_slug );
+			if ( empty( $theme_slug ) || '.' === $theme_slug || '..' === $theme_slug ) {
+				continue;
+			}
+
+			$extracted_theme   = $extracted_themes_dir . $theme_slug;
+			$target_theme      = $themes_dir . '/' . $theme_slug;
+			$normalized_target = rtrim( wp_normalize_path( $target_theme ), '/' );
+
+			// Safeguard: Never operate on the themes root itself
+			if ( $normalized_target === $normalized_themes_dir || 0 !== strpos( $normalized_target, $normalized_themes_dir . '/' ) ) {
+				continue;
+			}
 
 			if ( ! is_dir( $extracted_theme ) ) {
 				continue; // skip loose files at root level
@@ -721,16 +766,28 @@ class PEIWM_Themes_Plugins_Handler {
 			return array( 'success' => false, 'message' => esc_html__( 'Failed to open ZIP file', 'post-export-import-with-media' ) );
 		}
 
+		// Security: Validate ZIP entries against directory traversal (Zip-Slip)
+		for ( $i = 0; $i < $zip->numFiles; $i++ ) {
+			$stat = $zip->statIndex( $i );
+			$entry_name = $stat['name'];
+			if ( false !== strpos( $entry_name, '..' ) || 0 === strpos( $entry_name, '/' ) || 0 === strpos( $entry_name, '\\' ) || false !== strpos( $entry_name, "\0" ) ) {
+				$zip->close();
+				$this->rrmdir( $temp_dir );
+				return array( 'success' => false, 'message' => esc_html__( 'Invalid or insecure file path in ZIP archive', 'post-export-import-with-media' ) );
+			}
+		}
+
 		// Extract everything into temp dir at once — much faster than per-file getFromIndex()
 		$extract_dir = $temp_dir . 'extracted/';
 		wp_mkdir_p( $extract_dir );
 		$zip->extractTo( $extract_dir );
 		$zip->close();
 
-		$plugins_dir      = WP_PLUGIN_DIR;
-		$imported_plugins = array();
-		$skipped_plugins  = array();
-		$failed_plugins   = array();
+		$plugins_dir            = WP_PLUGIN_DIR;
+		$normalized_plugins_dir = rtrim( wp_normalize_path( $plugins_dir ), '/' );
+		$imported_plugins       = array();
+		$skipped_plugins        = array();
+		$failed_plugins         = array();
 
 		// Scan extracted plugins/ directory
 		$extracted_plugins_dir = $extract_dir . 'plugins/';
@@ -742,9 +799,19 @@ class PEIWM_Themes_Plugins_Handler {
 		$plugin_slugs = array_diff( scandir( $extracted_plugins_dir ), array( '.', '..' ) );
 
 		foreach ( $plugin_slugs as $plugin_slug ) {
-			$plugin_slug      = sanitize_file_name( $plugin_slug );
-			$extracted_plugin = $extracted_plugins_dir . $plugin_slug;
-			$target_plugin    = $plugins_dir . '/' . $plugin_slug;
+			$plugin_slug = sanitize_file_name( $plugin_slug );
+			if ( empty( $plugin_slug ) || '.' === $plugin_slug || '..' === $plugin_slug ) {
+				continue;
+			}
+
+			$extracted_plugin   = $extracted_plugins_dir . $plugin_slug;
+			$target_plugin      = $plugins_dir . '/' . $plugin_slug;
+			$normalized_target  = rtrim( wp_normalize_path( $target_plugin ), '/' );
+
+			// Safeguard: Never operate on the plugins root itself
+			if ( $normalized_target === $normalized_plugins_dir || 0 !== strpos( $normalized_target, $normalized_plugins_dir . '/' ) ) {
+				continue;
+			}
 
 			// Skip if exists and skip_existing is set
 			if ( is_dir( $target_plugin ) && $skip_existing ) {

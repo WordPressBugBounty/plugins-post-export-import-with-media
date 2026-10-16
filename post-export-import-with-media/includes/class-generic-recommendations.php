@@ -165,6 +165,12 @@ class Recommendations {
 			) );
 		}
 
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array(
+				'message' => __( 'Permission denied', 'post-export-import-with-media' ),
+			) );
+		}
+
 		// Check if we should force refresh (for development/testing)
 		$force_refresh = isset( $_POST['force_refresh'] ) && $_POST['force_refresh'] === '1';
 		

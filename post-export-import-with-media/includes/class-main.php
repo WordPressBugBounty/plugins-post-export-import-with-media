@@ -182,6 +182,37 @@ class PEIWM_Main {
 	}
 
 	/**
+	 * Safely require a file, checking for existence and handling Linux case-sensitivity
+	 *
+	 * @param string $file_path
+	 * @return bool
+	 */
+	private function safe_require( $file_path ) {
+		if ( file_exists( $file_path ) ) {
+			require_once $file_path;
+			return true;
+		}
+
+		// Try case-insensitive lookup on Linux filesystems
+		$dir      = dirname( $file_path );
+		$basename = strtolower( basename( $file_path ) );
+
+		if ( is_dir( $dir ) && ( $dh = opendir( $dir ) ) ) {
+			while ( false !== ( $file = readdir( $dh ) ) ) {
+				if ( strtolower( $file ) === $basename ) {
+					closedir( $dh );
+					require_once trailingslashit( $dir ) . $file;
+					return true;
+				}
+			}
+			closedir( $dh );
+		}
+
+		error_log( 'PEIWM Error: Missing required file ' . $file_path );
+		return false;
+	}
+
+	/**
 	 * Load plugin dependencies
 	 */
 	private function load_dependencies() {
@@ -190,10 +221,10 @@ class PEIWM_Main {
 		$has_pro  = is_dir( $pro_path );
 
 		// Core classes always loaded
-		require_once PEIWM_PLUGIN_PATH . 'includes/class-email-template.php';
-		require_once PEIWM_PLUGIN_PATH . 'includes/class-admin-menu.php';
+		$this->safe_require( PEIWM_PLUGIN_PATH . 'includes/class-email-template.php' );
+		$this->safe_require( PEIWM_PLUGIN_PATH . 'includes/class-admin-menu.php' );
 
-		require_once PEIWM_PLUGIN_PATH . 'includes/class-ajax-handler.php';
+		$this->safe_require( PEIWM_PLUGIN_PATH . 'includes/class-ajax-handler.php' );
 		if ( $has_pro && file_exists( $pro_path . 'class-ajax-handler-pro.php' ) ) {
 			require_once $pro_path . 'class-ajax-handler-pro.php';
 		}
@@ -274,7 +305,7 @@ class PEIWM_Main {
 			require_once $pro_path . 'class-cleanup-scanner-pro.php';
 		}
 
-		// Missing featured image handler (Pro)
+		// Missing featured image handler 
 		if ( $has_pro && file_exists( $pro_path . 'class-featured-image-handler-pro.php' ) ) {
 			require_once $pro_path . 'class-featured-image-handler-pro.php';
 		}
@@ -285,7 +316,7 @@ class PEIWM_Main {
 			require_once $pro_path . 'class-duplicate-detector-handler-pro.php';
 		}
 
-		// Orphaned posts handler (Pro)
+		// Orphaned posts handler 
 		if ( $has_pro && file_exists( $pro_path . 'class-orphaned-posts-handler-pro.php' ) ) {
 			require_once $pro_path . 'class-orphaned-posts-handler-pro.php';
 		}
@@ -293,7 +324,7 @@ class PEIWM_Main {
 		// Post diff handler
 		require_once PEIWM_PLUGIN_PATH . 'includes/class-post-diff-handler.php';
 
-		// SEO analysis handler (Pro)
+		// SEO analysis handler 
 		if ( $has_pro && file_exists( $pro_path . 'class-seo-analysis-handler-pro.php' ) ) {
 			require_once $pro_path . 'class-seo-analysis-handler-pro.php';
 		}
@@ -326,7 +357,9 @@ class PEIWM_Main {
 		$is_pro = $this->is_pro_active();
 
 		// Initialize admin menu
-		PEIWM_Admin_Menu::get_instance();
+		if ( class_exists( 'PEIWM_Admin_Menu' ) ) {
+			PEIWM_Admin_Menu::get_instance();
+		}
 		
 		// Initialize AJAX handler
 		PEIWM_Ajax_Handler::get_instance();
@@ -397,8 +430,11 @@ class PEIWM_Main {
 		PEIWM_Heartbeat_Handler::get_instance();
 
 		// Initialize CPT & ACF Exporter
-		if ( $is_pro && class_exists( 'PEIM_CPT_ACF_Exporter_Pro' ) ) {
-			PEIM_CPT_ACF_Exporter_Pro::get_instance()->init();
+		if ( $is_pro && class_exists( 'PEIM_CPT_ACF_Exporter_Pro' ) && method_exists( 'PEIM_CPT_ACF_Exporter_Pro', 'get_instance' ) ) {
+			$cpt_exporter = PEIM_CPT_ACF_Exporter_Pro::get_instance();
+			if ( is_object( $cpt_exporter ) && method_exists( $cpt_exporter, 'init' ) ) {
+				$cpt_exporter->init();
+			}
 		}
 		
 		// Initialize user handler

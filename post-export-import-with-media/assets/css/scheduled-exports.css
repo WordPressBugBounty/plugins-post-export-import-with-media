@@ -81,11 +81,11 @@
     border-radius: 50%;
 }
 
-input:checked + .peiwm-toggle-slider {
+input:checked+.peiwm-toggle-slider {
     background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
 }
 
-input:checked + .peiwm-toggle-slider:before {
+input:checked+.peiwm-toggle-slider:before {
     transform: translateX(26px);
 }
 
@@ -126,7 +126,7 @@ input:checked + .peiwm-toggle-slider:before {
     flex-shrink: 0;
 }
 
-.peiwm-radio-label input[type="radio"]:checked + .peiwm-radio-text {
+.peiwm-radio-label input[type="radio"]:checked+.peiwm-radio-text {
     color: #f97316;
 }
 
@@ -243,6 +243,15 @@ input:checked + .peiwm-toggle-slider:before {
     margin: 0 0 1rem 0;
 }
 
+.peiwm-storage-badges-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    min-height: 26px;
+}
+
 .peiwm-storage-mode-badge {
     display: inline-block;
     padding: 0.25rem 0.75rem;
@@ -252,6 +261,16 @@ input:checked + .peiwm-toggle-slider:before {
     text-transform: uppercase;
     background: #10b981;
     color: white;
+}
+
+.peiwm-storage-mode-badge.peiwm-storage-active-tag {
+    display: none;
+    background: #10b981;
+    color: white;
+}
+
+.peiwm-storage-mode-card.active .peiwm-storage-mode-badge.peiwm-storage-active-tag {
+    display: inline-block;
 }
 
 .peiwm-storage-mode-badge.coming-soon {
@@ -312,8 +331,13 @@ input:checked + .peiwm-toggle-slider:before {
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 .peiwm-backup-item {
@@ -353,12 +377,79 @@ input:checked + .peiwm-toggle-slider:before {
 
 .peiwm-backup-actions {
     display: flex;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 0.6rem;
 }
 
-.peiwm-backup-actions .button {
-    padding: 0.5rem 1rem;
-    font-size: 0.875rem;
+.peiwm-backup-actions .peiwm-btn-download {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #ffffff;
+    color: #1e293b;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 7px 15px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+}
+
+.peiwm-backup-actions .peiwm-btn-download:hover {
+    background: #fff7ed;
+    border-color: #f97316;
+    color: #ea580c;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(249, 115, 22, 0.15);
+}
+
+.peiwm-backup-actions .peiwm-btn-delete {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1.5px solid #fecaca;
+    border-radius: 8px;
+    padding: 7px 15px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.peiwm-backup-actions .peiwm-btn-delete:hover {
+    background: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+}
+
+.peiwm-latest-download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 8px 18px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.28) !important;
+    transition: all 0.2s ease !important;
+}
+
+.peiwm-latest-download-btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 16px rgba(249, 115, 22, 0.4) !important;
+    color: #ffffff !important;
 }
 
 .peiwm-no-backups {
@@ -436,9 +527,12 @@ input:checked + .peiwm-toggle-slider:before {
 }
 
 @keyframes pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 0.9;
     }
+
     50% {
         opacity: 0.6;
     }
@@ -451,7 +545,7 @@ input:checked + .peiwm-toggle-slider:before {
     font-weight: 700;
 }
 
-.peiwm-pro-locked-feature > p {
+.peiwm-pro-locked-feature>p {
     font-size: 18px;
     color: #4a4a4a;
     margin-bottom: 30px;
@@ -497,3 +591,485 @@ input:checked + .peiwm-toggle-slider:before {
     color: white;
 }
 
+/* ==========================================================================
+   Scheduled Exports UI Styles (Extracted from inline styles)
+   ========================================================================== */
+
+.peiwm-hidden {
+    display: none;
+}
+
+.peiwm-admin-notice {
+    margin-top: 1rem;
+}
+
+/* Latest Exported Backup Card */
+.peiwm-latest-backup-card {
+    background: #ffffff;
+    border: 2px solid rgba(249, 115, 22, 0.2);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgba(249, 115, 22, 0.1);
+}
+
+.peiwm-latest-backup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.peiwm-latest-backup-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: rgba(249, 115, 22, 0.1);
+    color: #ea580c;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+}
+
+.peiwm-latest-backup-title {
+    margin: 0 0 0.35rem 0;
+    font-size: 1.2rem;
+    color: #1a1a1a;
+    font-weight: 700;
+}
+
+.peiwm-latest-backup-desc {
+    margin: 0;
+    color: #4a4a4a;
+    font-size: 14px;
+}
+
+.peiwm-latest-backup-dot {
+    margin: 0 0.5rem;
+}
+
+.peiwm-latest-backup-downloads {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: center;
+}
+
+.peiwm-latest-download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.peiwm-latest-download-btn .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+}
+
+/* Sub Config Section */
+.peiwm-sub-config {
+    margin-top: 1rem;
+}
+
+/* Storage Mode Badges */
+.peiwm-storage-mode-badge.connected {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.peiwm-storage-mode-badge.setup-required {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+/* Google Drive Configuration Panel */
+.peiwm-google-drive-config {
+    margin-top: 1.5rem;
+    padding: 1.25rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}
+
+.peiwm-google-drive-config h3 {
+    margin-top: 0;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.peiwm-gdrive-status-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    margin-bottom: 1.25rem;
+}
+
+.peiwm-gdrive-status-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.peiwm-gdrive-status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #9ca3af;
+    flex-shrink: 0;
+}
+
+.peiwm-gdrive-status-dot.connected {
+    background: #16a34a;
+}
+
+.peiwm-gdrive-account-email {
+    margin: 2px 0 0 0;
+}
+
+.peiwm-gdrive-status-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.peiwm-btn-disconnect {
+    color: #dc2626 !important;
+}
+
+.peiwm-btn-connect-gdrive {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+}
+
+.peiwm-gdrive-config-warning {
+    color: #b45309;
+}
+
+.peiwm-gdrive-folder-field {
+    margin-bottom: 1.25rem;
+}
+
+.peiwm-folder-name-input {
+    margin-top: 0.35rem;
+}
+
+/* Google API Credentials Drawer */
+.peiwm-gdrive-credentials-drawer {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+}
+
+.peiwm-gdrive-drawer-summary {
+    font-weight: 600;
+    cursor: pointer;
+    color: #2563eb;
+    outline: none;
+}
+
+.peiwm-gdrive-drawer-body {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f1f5f9;
+}
+
+.peiwm-gdrive-drawer-desc {
+    margin-bottom: 0.75rem;
+}
+
+/* Step Guide & Video Tutorial Toggles */
+.peiwm-guide-toggle-step,
+.peiwm-guide-toggle-video {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 0.6rem 0.85rem;
+    margin-bottom: 0.75rem;
+}
+
+.peiwm-guide-toggle-video {
+    margin-bottom: 1.25rem;
+}
+
+.peiwm-guide-toggle-summary {
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    outline: none;
+}
+
+.peiwm-guide-toggle-step-summary {
+    color: #1e293b;
+}
+
+.peiwm-guide-toggle-video-summary {
+    color: #dc2626;
+}
+
+.peiwm-guide-step-content {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed #cbd5e1;
+}
+
+.peiwm-gdrive-steps {
+    margin: 0 0 1.25rem 1.25rem;
+    padding: 0;
+    font-size: 0.875rem;
+    color: #374151;
+    line-height: 1.7;
+}
+
+.peiwm-gdrive-steps>li {
+    margin-bottom: 0.75rem;
+}
+
+.peiwm-gdrive-steps a {
+    color: #2563eb;
+    text-decoration: underline;
+    font-weight: 500;
+}
+
+.peiwm-sub-steps-list {
+    margin: 0.35rem 0 0.5rem 1.25rem;
+    list-style-type: disc;
+    color: #4b5563;
+}
+
+.peiwm-sub-steps-list>li {
+    margin-top: 0.35rem;
+}
+
+.peiwm-code-snippet {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.82rem;
+    user-select: all;
+    border: 1px solid #e2e8f0;
+}
+
+.peiwm-guide-note {
+    background: #fef3c7;
+    border-left: 3px solid #f59e0b;
+    padding: 6px 10px;
+    margin-top: 5px;
+    font-size: 0.82rem;
+    color: #92400e;
+    border-radius: 3px;
+}
+
+.peiwm-gdrive-redirect-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+    flex-wrap: wrap;
+}
+
+#peiwm-gdrive-redirect-uri {
+    background: #f1f5f9;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.82rem;
+    user-select: all;
+    border: 1px solid #e2e8f0;
+}
+
+.peiwm-guide-all-set {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    border-radius: 6px;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.85rem;
+    color: #065f46;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Video Tutorial Card */
+.peiwm-guide-video-card {
+    margin-top: 0.75rem;
+    padding: 1rem;
+    background: #ffffff;
+    border: 1px solid #fee2e2;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.peiwm-guide-video-info {
+    max-width: 440px;
+}
+
+.peiwm-guide-video-title {
+    margin: 0 0 0.35rem 0;
+    font-size: 0.95rem;
+    color: #991b1b;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.peiwm-guide-video-desc {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #4b5563;
+    line-height: 1.5;
+}
+
+/* YouTube Button with Perfect Icon Alignment */
+.peiwm-btn-youtube {
+    background: #dc2626 !important;
+    border: 1px solid #dc2626 !important;
+    color: #ffffff !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 6px 16px !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+    border-radius: 6px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) !important;
+    height: auto !important;
+    line-height: 1 !important;
+    font-size: 13px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+}
+
+.peiwm-btn-youtube:hover,
+.peiwm-btn-youtube:focus {
+    background: #b91c1c !important;
+    border-color: #b91c1c !important;
+    color: #ffffff !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(220, 38, 38, 0.25) !important;
+}
+
+.peiwm-btn-youtube .dashicons {
+    font-size: 18px !important;
+    width: 18px !important;
+    height: 18px !important;
+    line-height: 18px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    vertical-align: middle !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.peiwm-btn-youtube .peiwm-btn-text {
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Credentials Grid */
+.peiwm-gdrive-credentials-grid {
+    margin-top: 1rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.peiwm-cred-input {
+    margin-top: 0.25rem;
+}
+
+.peiwm-gdrive-credentials-actions {
+    margin-top: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+#peiwm-gdrive-cred-feedback {
+    font-size: 0.85rem;
+}
+
+/* Modal and Existing Backups Details */
+.peiwm-modal-overlay {
+    display: none;
+}
+
+.peiwm-modal-filename {
+    font-weight: 600;
+    color: #742a2a;
+    margin-top: 1rem;
+}
+
+.peiwm-modal-subtext {
+    color: #6b7280;
+    margin-top: 0.5rem;
+}
+
+.peiwm-storage-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.peiwm-storage-badge.google_drive {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.peiwm-storage-badge.local {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.peiwm-backup-filename {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.peiwm-backups-total-desc {
+    margin-top: 1rem;
+}
+
+.peiwm-btn-download .dashicons,
+.peiwm-btn-delete .dashicons {
+    font-size: 16px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+}

@@ -867,10 +867,10 @@ class PEIWM_Page_Handler {
 
 			// Try to download from URL
 			$image_url = isset( $image_data['url'] ) ? esc_url_raw( $image_data['url'] ) : '';
-			if ( empty( $image_url ) ) {
+			if ( empty( $image_url ) || ! wp_http_validate_url( $image_url ) ) {
 				wp_send_json_success( array(
 					'status' => 'failed',
-					'message' => 'No URL provided for download',
+					'message' => 'Invalid or restricted image URL provided for download',
 				) );
 			}
 
@@ -1217,6 +1217,10 @@ class PEIWM_Page_Handler {
 	 * @return int|WP_Error|null Attachment ID or error
 	 */
 	private function download_and_create_attachment( $image_url, $page_id, $image_title = '', $image_alt = '', $file_path = '' ) {
+		if ( empty( $image_url ) || ! wp_http_validate_url( $image_url ) ) {
+			return null;
+		}
+
 		$filename = basename( wp_parse_url( $image_url, PHP_URL_PATH ) );
 
 		$this->import_results[] = array(

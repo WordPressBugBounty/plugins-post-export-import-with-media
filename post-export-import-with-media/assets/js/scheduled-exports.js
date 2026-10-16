@@ -1,6 +1,16 @@
 jQuery(document).ready(function($) {
 	'use strict';
 
+	// Remove Google Drive success/error query params from URL without refreshing so notices don't persist on reload
+	if (window.history && window.history.replaceState) {
+		const currentUrl = new URL(window.location.href);
+		if (currentUrl.searchParams.has('peiwm_gdrive_success') || currentUrl.searchParams.has('peiwm_gdrive_error')) {
+			currentUrl.searchParams.delete('peiwm_gdrive_success');
+			currentUrl.searchParams.delete('peiwm_gdrive_error');
+			window.history.replaceState({}, document.title, currentUrl.pathname + currentUrl.search);
+		}
+	}
+
 	// Premium Modal handler for scheduled exports page
 	$(document).on('click', '.peiwm-open-premium-modal, .peiwm-locked-section', function (e) {
 		if ($(e.target).is('input, select, textarea, button:not(.peiwm-open-premium-modal), label, a')) return;
@@ -22,7 +32,7 @@ jQuery(document).ready(function($) {
 	// Toggle email config visibility (only if PRO is active)
 	$('#enable_email_notifications').on('change', function() {
 		if ($(this).is(':checked')) {
-			$('#peiwm-email-config').slideDown();
+			$('#peiwm-email-config').removeClass('peiwm-hidden').slideDown();
 		} else {
 			$('#peiwm-email-config').slideUp();
 		}
@@ -31,7 +41,7 @@ jQuery(document).ready(function($) {
 	// Toggle rotation config visibility (only if PRO is active)
 	$('#enable_backup_rotation').on('change', function() {
 		if ($(this).is(':checked')) {
-			$('#peiwm-rotation-config').slideDown();
+			$('#peiwm-rotation-config').removeClass('peiwm-hidden').slideDown();
 		} else {
 			$('#peiwm-rotation-config').slideUp();
 		}
@@ -43,10 +53,135 @@ jQuery(document).ready(function($) {
 		$(this).closest('.peiwm-storage-mode-card').addClass('active');
 		
 		if ($(this).val() === 'local') {
-			$('#peiwm-local-storage-info').slideDown();
-		} else {
+			$('#peiwm-local-storage-info').removeClass('peiwm-hidden').slideDown();
+			$('#peiwm-google-drive-config').slideUp();
+		} else if ($(this).val() === 'google_drive') {
 			$('#peiwm-local-storage-info').slideUp();
+			$('#peiwm-google-drive-config').removeClass('peiwm-hidden').slideDown();
 		}
+
+		if ( peiwm_scheduled_exports.is_pro === '1' ) {
+			loadBackups();
+		}
+	});
+
+	// Copy Google OAuth Redirect URI
+	$('#peiwm-copy-redirect-uri').on('click', function() {
+		const uri = $('#peiwm-gdrive-redirect-uri').text().trim();
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard.writeText(uri).then(function() {
+				showToast('success', 'Redirect URI copied to clipboard!');
+			});
+		} else {
+			// Fallback
+			const $temp = $('<textarea>');
+			$('body').append($temp);
+			$temp.val(uri).select();
+			document.execCommand('copy');
+			$temp.remove();
+			showToast('success', 'Redirect URI copied to clipboard!');
+		}
+	});
+
+	// Save Google Client ID & Secret
+	$('#peiwm-save-gdrive-credentials-btn').on('click', function() {
+		const $btn = $(this);
+		const clientId = $('#peiwm_gdrive_client_id').val().trim();
+		const clientSecret = $('#peiwm_gdrive_client_secret').val().trim();
+		const $feedback = $('#peiwm-gdrive-cred-feedback');
+
+		$btn.prop('disabled', true).text('Saving...');
+		$feedback.text('').css('color', '');
+
+		$.ajax({
+			url: peiwm_scheduled_exports.ajax_url,
+			type: 'POST',
+			data: {
+				action: 'peiwm_gdrive_save_credentials',
+				nonce: peiwm_scheduled_exports.nonce,
+				client_id: clientId,
+				client_secret: clientSecret
+			},
+			success: function(response) {
+				$btn.prop('disabled', false).text('Save Credentials');
+				if (response.success) {
+					$feedback.text('✓ Saved! Refreshing...').css('color', '#16a34a');
+					showSuccess('Google Drive credentials saved!');
+					setTimeout(function() {
+						window.location.reload();
+					}, 800);
+				} else {
+					$feedback.text('✗ ' + (response.data ? response.data.message : 'Save failed')).css('color', '#dc2626');
+					showError('Failed to save credentials: ' + (response.data ? response.data.message : 'Unknown error'));
+				}
+			},
+			error: function(xhr, status, error) {
+				$btn.prop('disabled', false).text('Save Credentials');
+				$feedback.text('✗ Error saving: ' + error).css('color', '#dc2626');
+				showError('Network error: ' + error);
+			}
+		});
+	});
+
+	// Disconnect Google Drive
+	$('#peiwm-gdrive-disconnect-btn').on('click', function() {
+		if (!confirm('Are you sure you want to disconnect Google Drive? Scheduled backups will no longer upload to Google Drive.')) {
+			return;
+		}
+
+		const $btn = $(this);
+		$btn.prop('disabled', true).text('Disconnecting...');
+
+		$.ajax({
+			url: peiwm_scheduled_exports.ajax_url,
+			type: 'POST',
+			data: {
+				action: 'peiwm_gdrive_disconnect',
+				nonce: peiwm_scheduled_exports.nonce
+			},
+			success: function(response) {
+				if (response.success) {
+					showSuccess('Google Drive disconnected.');
+					setTimeout(function() {
+						window.location.reload();
+					}, 700);
+				} else {
+					$btn.prop('disabled', false).text('Disconnect');
+					showError('Failed to disconnect: ' + (response.data ? response.data.message : 'Unknown error'));
+				}
+			},
+			error: function(xhr, status, error) {
+				$btn.prop('disabled', false).text('Disconnect');
+				showError('Network error: ' + error);
+			}
+		});
+	});
+
+	// Test Connection to Google Drive
+	$('#peiwm-gdrive-test-btn').on('click', function() {
+		const $btn = $(this);
+		$btn.prop('disabled', true).text('Testing...');
+
+		$.ajax({
+			url: peiwm_scheduled_exports.ajax_url,
+			type: 'POST',
+			data: {
+				action: 'peiwm_gdrive_test_connection',
+				nonce: peiwm_scheduled_exports.nonce
+			},
+			success: function(response) {
+				$btn.prop('disabled', false).text('Test Connection');
+				if (response.success) {
+					showSuccess(response.data.message || 'Connection verified successfully!');
+				} else {
+					showError('Connection test failed: ' + (response.data ? response.data.message : 'Unknown error'));
+				}
+			},
+			error: function(xhr, status, error) {
+				$btn.prop('disabled', false).text('Test Connection');
+				showError('Network error: ' + error);
+			}
+		});
 	});
 
 	// Load backups on page load — PRO only
@@ -109,21 +244,28 @@ jQuery(document).ready(function($) {
 		let html = '<div class="peiwm-backups-grid">';
 		
 		data.backups.forEach(function(backup) {
+			const storageBadge = backup.storage === 'google_drive'
+				? '<span class="peiwm-storage-badge google_drive">☁️ Google Drive</span>'
+				: '<span class="peiwm-storage-badge local">💾 Local</span>';
+
 			html += `
 				<div class="peiwm-backup-item" data-filename="${backup.filename}">
 					<div class="peiwm-backup-info">
-						<div class="peiwm-backup-filename">${backup.filename}</div>
+						<div class="peiwm-backup-filename">
+							<span>${backup.filename}</span>
+							${storageBadge}
+						</div>
 						<div class="peiwm-backup-meta">
 							<span>📅 ${backup.date}</span>
 							<span>💾 ${backup.size}</span>
 						</div>
 					</div>
 					<div class="peiwm-backup-actions">
-						<button type="button" class="button button-secondary peiwm-download-backup" data-filename="${backup.filename}">
-							Download
+						<button type="button" class="button peiwm-btn-download peiwm-download-backup" data-filename="${backup.filename}">
+							<span class="dashicons dashicons-download"></span> Download
 						</button>
-						<button type="button" class="button button-danger peiwm-delete-backup" data-filename="${backup.filename}">
-							Delete
+						<button type="button" class="button peiwm-btn-delete peiwm-delete-backup" data-filename="${backup.filename}">
+							<span class="dashicons dashicons-trash"></span> Delete
 						</button>
 					</div>
 				</div>
@@ -131,7 +273,7 @@ jQuery(document).ready(function($) {
 		});
 		
 		html += '</div>';
-		html += `<p class="description" style="margin-top: 1rem;">Total backups: ${data.total_count} | Storage path: <code>${data.backup_path}</code></p>`;
+		html += `<p class="description peiwm-backups-total-desc">Total backups: ${data.total_count} | Storage path: <code>${data.backup_path}</code></p>`;
 		
 		$list.html(html);
 	}
@@ -181,6 +323,7 @@ jQuery(document).ready(function($) {
 								loadBackups();
 							}
 						});
+
 						showSuccess('Backup deleted successfully');
 					} else {
 						showError('Failed to delete backup: ' + response.data.message);
