@@ -260,6 +260,16 @@ class PEIWM_Admin_Menu {
 			array( $this, 'email_template_page' )
 		);
 
+		// MCP & Remote Sync submenu page
+		add_submenu_page(
+			'peiwm-secure',
+			esc_html__( 'MCP & Remote Sync', 'post-export-import-with-media' ),
+			esc_html__( 'MCP & Remote Sync', 'post-export-import-with-media' ),
+			'manage_options',
+			'peiwm-mcp',
+			array( $this, 'mcp_page' )
+		);
+
 		// Note: Batch Settings (priority 30) and Scheduled Exports (priority 40)
 		// are added by their respective classes
 		// Recommendations (priority 50) is added in add_recommendations_menu()
@@ -293,6 +303,12 @@ class PEIWM_Admin_Menu {
 				array( 'jquery' ),
 				PEIWM_VERSION,
 				true
+			);
+
+			// Clean separator style for MCP & Remote Sync submenu item
+			wp_add_inline_style(
+				'common',
+				'#adminmenu a[href*="page=peiwm-mcp"] { border-top: 1px solid rgba(255,255,255,0.14) !important; border-bottom: 1px solid rgba(255,255,255,0.14) !important; margin: 4px 0 !important; }'
 			);
 		}
 
@@ -794,7 +810,64 @@ class PEIWM_Admin_Menu {
 			}
 		}
 
-		
+		// MCP & Remote Sync page
+		if ( ( isset( $_GET['page'] ) && 'peiwm-mcp' === $_GET['page'] ) || 'export-import-posts_page_peiwm-mcp' === $hook || strpos( $hook, 'peiwm-mcp' ) !== false ) {
+			wp_enqueue_style(
+				'peiwm-admin-css',
+				PEIWM_PLUGIN_URL . 'build/css/admin.min.css',
+				array(),
+				PEIWM_VERSION
+			);
+
+			// Locked preview assets are only needed when Pro does not render its own MCP tab.
+			$peiwm_mcp_preview = ! ( PEIWM_Main::get_instance()->is_pro_active() && class_exists( 'PEIWMPRO\\MCP\\Admin\\TabRenderer' ) );
+
+			if ( ! $peiwm_mcp_preview ) {
+				// Pro enqueues its own MCP assets.
+			} elseif ( file_exists( PEIWM_PLUGIN_PATH . 'build/css/mcp.min.css' ) ) {
+				wp_enqueue_style(
+					'peiwm-mcp-css',
+					PEIWM_PLUGIN_URL . 'build/css/mcp.min.css',
+					array( 'peiwm-admin-css' ),
+					PEIWM_VERSION
+				);
+			} elseif ( file_exists( PEIWM_PLUGIN_PATH . 'assets/css/mcp.css' ) ) {
+				wp_enqueue_style(
+					'peiwm-mcp-css',
+					PEIWM_PLUGIN_URL . 'assets/css/mcp.css',
+					array( 'peiwm-admin-css' ),
+					PEIWM_VERSION
+				);
+			}
+
+			wp_enqueue_script(
+				'peiwm-admin-js',
+				PEIWM_PLUGIN_URL . 'build/js/admin.min.js',
+				array( 'jquery' ),
+				PEIWM_VERSION,
+				true
+			);
+
+			if ( ! $peiwm_mcp_preview ) {
+				// Pro enqueues its own MCP assets.
+			} elseif ( file_exists( PEIWM_PLUGIN_PATH . 'build/js/mcp.min.js' ) ) {
+				wp_enqueue_script(
+					'peiwm-mcp-js',
+					PEIWM_PLUGIN_URL . 'build/js/mcp.min.js',
+					array( 'jquery', 'peiwm-admin-js' ),
+					PEIWM_VERSION,
+					true
+				);
+			} elseif ( file_exists( PEIWM_PLUGIN_PATH . 'assets/js/mcp.js' ) ) {
+				wp_enqueue_script(
+					'peiwm-mcp-js',
+					PEIWM_PLUGIN_URL . 'assets/js/mcp.js',
+					array( 'jquery', 'peiwm-admin-js' ),
+					PEIWM_VERSION,
+					true
+				);
+			}
+		}
 	}
 
 	/**
@@ -3270,6 +3343,41 @@ class PEIWM_Admin_Menu {
 	}
 
 	/**
+	 * Render MCP & Remote Sync page
+	 */
+	public function mcp_page() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'post-export-import-with-media' ) );
+		}
+
+		$is_pro = PEIWM_Main::get_instance()->is_pro_active();
+
+		if ( $is_pro ) {
+			// Only render if the active Pro installation actually has complete MCP support including Settings::site_role
+			$has_full_mcp = ( class_exists( 'PEIWMPRO\\MCP\\Settings' ) && method_exists( 'PEIWMPRO\\MCP\\Settings', 'site_role' ) )
+				|| ( defined( 'PEIWM_PRO_PLUGIN_PATH' ) && file_exists( PEIWM_PRO_PLUGIN_PATH . 'includes/MCP/Settings.php' ) && method_exists( 'PEIWMPRO\\MCP\\Settings', 'site_role' ) );
+
+			if ( $has_full_mcp ) {
+				if ( has_action( 'peiwm_render_mcp_tab' ) ) {
+					do_action( 'peiwm_render_mcp_tab' );
+					return;
+				}
+				if ( class_exists( 'PEIWMPRO\\MCP\\Admin\\TabRenderer' ) ) {
+					\PEIWMPRO\MCP\Admin\TabRenderer::render();
+					return;
+				}
+			}
+
+			// Old pro active without complete MCP: display update notice and clean preview
+			$peiwm_mcp_old_pro_notice = true;
+			require_once PEIWM_PLUGIN_PATH . 'includes/mcp-locked-preview.php';
+			return;
+		}
+
+		require_once PEIWM_PLUGIN_PATH . 'includes/mcp-locked-preview.php';
+	}
+
+	/**
 	 * Render modal templates
 	 */
 	public function render_modal_templates() {		?>
@@ -3494,6 +3602,8 @@ class PEIWM_Admin_Menu {
 					<p class="peiwm-premium-subtitle"><?php echo esc_html__( 'You\'re one step away from powerful automation tools!', 'post-export-import-with-media' ); ?></p>
 
 					<div class="peiwm-premium-features">
+						<div class="peiwm-premium-feature">✓ <?php echo esc_html__( 'MCP AI Integration (Claude, Cursor, Codex)', 'post-export-import-with-media' ); ?></div>
+						<div class="peiwm-premium-feature">✓ <?php echo esc_html__( 'Site-to-Site Live Sync (Push & Pull)', 'post-export-import-with-media' ); ?></div>
 						<div class="peiwm-premium-feature">✓ <?php echo esc_html__( 'Selective Export & Import', 'post-export-import-with-media' ); ?></div>
 						<div class="peiwm-premium-feature">✓ <?php echo esc_html__( 'Scheduled Automatic Exports', 'post-export-import-with-media' ); ?></div>
 						<div class="peiwm-premium-feature">✓ <?php echo esc_html__( 'Batch Processing (100K+ posts)', 'post-export-import-with-media' ); ?></div>
